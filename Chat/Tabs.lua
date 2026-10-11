@@ -17,6 +17,34 @@ local function ApplyTabGradient(background)
 	);
 end;
 
+local function ApplyTabTextSkin(tab)
+	local text = tab.Text or tab:GetFontString();
+	if not text then
+		return nil;
+	end;
+
+	local textPoint, textRelativeTo, textRelativePoint, textX, textY = text:GetPoint(1);
+	if text:GetNumPoints() ~= 1 or textPoint ~= "CENTER" or textRelativeTo ~= tab
+		or textRelativePoint ~= "CENTER" or textX ~= 0 or textY ~= 0 then
+		text:ClearAllPoints();
+		text:SetPoint("CENTER", tab, "CENTER", 0, 0);
+	end;
+	text:SetTextColor(1, 1, 1);
+
+	local underline = tab.ChitChatSelectedUnderline;
+	if not underline then
+		underline = tab:CreateTexture(tab:GetName() .. "ChitChatSelectedUnderline", "OVERLAY");
+		underline:SetColorTexture(1, 1, 1, 1);
+		underline:SetHeight(1);
+		underline:SetPoint("BOTTOM", text, "BOTTOM", 0, -2);
+		underline:Hide();
+		tab.ChitChatSelectedUnderline = underline;
+	end;
+	underline:SetWidth(math.max(text:GetStringWidth(), 1));
+
+	return text, underline;
+end;
+
 local function ApplyTabSkin(tab)
 	if not tab then
 		return;
@@ -37,19 +65,7 @@ local function ApplyTabSkin(tab)
 		background:Hide();
 	end);
 	tab.ChitChatBackground = background;
-	local text = tab.Text or tab:GetFontString();
-	if text then
-		text:ClearAllPoints();
-		text:SetPoint("CENTER", tab, "CENTER", 0, 0);
-		text:SetTextColor(1, 1, 1);
-		local underline = tab:CreateTexture(tab:GetName() .. "ChitChatSelectedUnderline", "OVERLAY");
-		underline:SetColorTexture(1, 1, 1, 1);
-		underline:SetHeight(1);
-		underline:SetPoint("BOTTOM", text, "BOTTOM", 0, -2);
-		underline:SetWidth(math.max(text:GetStringWidth(), 1));
-		underline:Hide();
-		tab.ChitChatSelectedUnderline = underline;
-	end;
+	ApplyTabTextSkin(tab);
 	return tab.ChitChatBackground;
 end;
 
@@ -88,20 +104,10 @@ function core:UpdateChatTab(entry)
 	if tab:GetHeight() ~= height then
 		tab:SetHeight(height);
 	end;
-	local underline = tab.ChitChatSelectedUnderline;
+	local _, underline = ApplyTabTextSkin(tab);
 	if underline then
 		core.HideDefaultTextures(tab, underline);
 		local chatFrame = _G["ChatFrame" .. tab:GetID()];
-		local text = tab.Text or tab:GetFontString();
-		text:SetTextColor(1, 1, 1);
-		-- blizz repositions the text when it resizes a tab
-		local textPoint, textRelativeTo, textRelativePoint, textX, textY = text:GetPoint(1);
-		if text:GetNumPoints() ~= 1 or textPoint ~= "CENTER" or textRelativeTo ~= tab
-			or textRelativePoint ~= "CENTER" or textX ~= 0 or textY ~= 0 then
-			text:ClearAllPoints();
-			text:SetPoint("CENTER", tab, "CENTER", 0, 0);
-		end;
-		underline:SetWidth(math.max(text:GetStringWidth(), 1));
 		underline:SetShown(chatFrame == SELECTED_CHAT_FRAME);
 	end;
 end;
