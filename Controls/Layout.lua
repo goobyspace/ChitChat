@@ -95,7 +95,7 @@ end;
 
 local function GetHighestVisibleTabTop(selectedTab)
 	local tabTop = selectedTab and selectedTab:GetTop();
-	for index = 1, NUM_CHAT_WINDOWS do
+	for index = 1, core.GetChatWindowCount() do
 		local tab = _G["ChatFrame" .. index .. "Tab"];
 		local visibleTabTop = tab and tab:IsShown() and tab:GetTop();
 		if visibleTabTop and (not tabTop or visibleTabTop > tabTop) then

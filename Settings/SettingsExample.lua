@@ -152,17 +152,19 @@ end;
 
 function example:UpdateHover(elapsed)
     local config = ChitChatGlobalStorage;
-    local alwaysShowControlsAndTabs = config.alwaysShowControlsAndTabs;
-    local step = alwaysShowControlsAndTabs and 1 or math.min(elapsed / math.max(config.fadeDuration, 0.01), 1);
+    local alwaysShowControls = config.alwaysShowControls;
+    local alwaysShowChatTabs = config.alwaysShowChatTabs;
+    local controlsStep = alwaysShowControls and 1 or math.min(elapsed / math.max(config.fadeDuration, 0.01), 1);
+    local tabsStep = alwaysShowChatTabs and 1 or math.min(elapsed / math.max(config.fadeDuration, 0.01), 1);
     local alphas = frame.hoverAlpha;
     local buttons = frame.controlButtons or {};
     local forced = GetTime() < (frame.forceHoverUntil or 0);
     local controlsHovered = forced or IsRowHovered(frame.controlsArea, buttons);
-    local tabsTarget = (alwaysShowControlsAndTabs or forced or frame:IsMouseOver() or controlsHovered)
-        and 1 or config.idleAlpha;
-    local controlsTarget = (alwaysShowControlsAndTabs or controlsHovered) and 1 or config.idleAlpha;
-    alphas.tabs = alphas.tabs + (tabsTarget - alphas.tabs) * step;
-    alphas.controls = alphas.controls + (controlsTarget - alphas.controls) * step;
+    local tabsTarget = (alwaysShowChatTabs or forced or frame:IsMouseOver() or controlsHovered)
+        and 1 or config.chatTabsIdleAlpha;
+    local controlsTarget = (alwaysShowControls or controlsHovered) and 1 or config.controlsIdleAlpha;
+    alphas.tabs = alphas.tabs + (tabsTarget - alphas.tabs) * tabsStep;
+    alphas.controls = alphas.controls + (controlsTarget - alphas.controls) * controlsStep;
     for _, tab in ipairs(frame.tabs) do
         ApplyAlpha(tab, alphas.tabs);
     end;
@@ -529,16 +531,16 @@ function example:Update(settingInfo)
         return;
     end;
 
-    if key:find("^control") or key == "idleAlpha" or key == "alwaysShowControlsAndTabs"
+    if key:find("^control") or key == "alwaysShowControls" or key == "controlsIdleAlpha"
+        or key == "alwaysShowChatTabs" or key == "chatTabsIdleAlpha"
         or key:find("^chatTab") or key == "tabHeight"
         or key == "chatTabsAtBottom" or key == "chatBoxAboveTabs" then
         frame.forceHoverUntil = GetTime() + 2;
     end;
 
-    if key == "alwaysShowControlsAndTabs" then
+    if key == "alwaysShowControls" then
         self:UpdateControls();
-        self:UpdateTabs();
-    elseif key:find("^control") or key == "idleAlpha" or key:find("^padding") then
+    elseif key:find("^control") or key == "controlsIdleAlpha" or key:find("^padding") then
         self:UpdateInput();
         self:UpdateControls(key:find("^controlBackground") ~= nil);
         self:LayoutMessages(true);

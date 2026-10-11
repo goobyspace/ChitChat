@@ -450,11 +450,24 @@ function core:RefreshChatFrameTimings()
 	end;
 end;
 
-local driver = CreateFrame("Frame", "ChitChatMessageFadeDriver");
-driver:SetScript("OnUpdate", UpdateBackgroundOpacity);
+function core.GetChatWindowCount()
+	return math.max(NUM_CHAT_WINDOWS or 0, CHAT_FRAMES and #CHAT_FRAMES or 0);
+end;
 
-function core:InitializeChitChat()
-	for index = 1, NUM_CHAT_WINDOWS do
+-- windows opened later by the user are created on demand, so they have to be picked up after login
+function core:AttachNewChatFrames()
+	for index = 1, core.GetChatWindowCount() do
 		AttachToChatFrame(_G["ChatFrame" .. index]);
 	end;
+end;
+
+local driver = CreateFrame("Frame", "ChitChatMessageFadeDriver");
+driver:SetScript("OnUpdate", function(frame, elapsed)
+	core:AttachNewChatFrames();
+	core.SyncMessageContainers();
+	UpdateBackgroundOpacity(frame, elapsed);
+end);
+
+function core:InitializeChitChat()
+	core:AttachNewChatFrames();
 end;

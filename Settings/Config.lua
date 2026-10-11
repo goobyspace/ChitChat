@@ -15,6 +15,21 @@ for _, keys in ipairs(timestampSettingKeys) do
 	end;
 end;
 
+local visibilitySettingKeys = {
+	{ "alwaysShowControlsAndTabs", "alwaysShowControls", "alwaysShowChatTabs" },
+	{ "idleAlpha",                 "controlsIdleAlpha",  "chatTabsIdleAlpha" },
+};
+
+for _, keys in ipairs(visibilitySettingKeys) do
+	local oldKey = keys[1];
+	for index = 2, #keys do
+		local newKey = keys[index];
+		if ChitChatGlobalStorage[newKey] == nil and ChitChatGlobalStorage[oldKey] ~= nil then
+			ChitChatGlobalStorage[newKey] = ChitChatGlobalStorage[oldKey];
+		end;
+	end;
+end;
+
 local function GetClockSetting(cvar)
 	return GetCVarBool(cvar);
 end;
@@ -249,25 +264,19 @@ core.Settings = {
 	},
 	Layout = {
 		{
-			name = "Input and tabs",
+			name = "Input",
 			settings = {
 				{
 					name = "chatBoxTop",
 					title = "Input on top",
 					description = "Place the input on top.",
-					default = false,
+					default = true,
 				},
 				{
 					name = "chatBoxMouseover",
 					reload = false,
-					title = "Input on mouseover",
+					title = "Show on mouseover",
 					description = "Shows the input box when hovered",
-					default = false,
-				},
-				{
-					name = "chatTabsAtBottom",
-					title = "Chat tabs on the bottom",
-					description = "Place the chat tabs on the bottom.",
 					default = false,
 				},
 				{
@@ -280,9 +289,20 @@ core.Settings = {
 					description = "When the input is placed on top, place it above the tabs.",
 					default = true,
 				},
+			},
+		},
+		{
+			name = "Tabs",
+			settings = {
+				{
+					name = "chatTabsAtBottom",
+					title = "Chat tabs on the bottom",
+					description = "Place the chat tabs on the bottom.",
+					default = false,
+				},
 				{
 					name = "tabHeight",
-					title = "Chat tab height",
+					title = "Height",
 					description = "Chat tab height.",
 					default = 20,
 					min = function()
@@ -291,6 +311,27 @@ core.Settings = {
 					end,
 					max = 60,
 				},
+				{
+					name = "alwaysShowChatTabs",
+					reload = false,
+					title = "Always show",
+					description = "Keep chat tabs fully visible instead of fading them when not hovered.",
+					default = false,
+				},
+				{
+					name = "chatTabsIdleAlpha",
+					reload = false,
+					dependsOn = "alwaysShowChatTabs",
+					enabledWhen = function()
+						return not core.config.alwaysShowChatTabs;
+					end,
+					title = "Base opacity",
+					description = "Opacity of the chat tabs when not hovered.",
+					default = 0,
+					min = 0,
+					max = 1,
+					step = 0.05,
+				},
 			},
 		},
 		{
@@ -298,7 +339,7 @@ core.Settings = {
 			settings = {
 				{
 					name = "controlSize",
-					title = "Button size",
+					title = "Size",
 					description = "Width/height of each control button.",
 					default = 24,
 					min = 12,
@@ -306,7 +347,7 @@ core.Settings = {
 				},
 				{
 					name = "controlSpacing",
-					title = "Button gap",
+					title = "Gap",
 					description = "Gap between each button.",
 					default = 0,
 					min = 0,
@@ -315,21 +356,21 @@ core.Settings = {
 				{
 					name = "controls.vertical",
 					key = "controlsVertical",
-					title = "Vertical control buttons",
+					title = "Vertical",
 					description = "Make the control buttons vertical.",
 					default = false,
 				},
 				{
 					name = "controls.outside",
 					key = "controlsOutside",
-					title = "Control buttons outside",
+					title = "Outside",
 					description = "Make the control buttons outside the frame",
 					default = false,
 				},
 				{
 					name = "controls.position",
 					key = "controlsPosition",
-					title = "Control buttons position",
+					title = "Position",
 					description =
 					"Position of the control buttons.",
 					default = 1,
@@ -342,28 +383,22 @@ core.Settings = {
 						{ value = "BOTTOMLEFT",  text = "Bottom left" },
 					},
 				},
-			},
-		},
-		{
-			name = "Controls and tabs",
-			settings = {
 				{
-					name = "alwaysShowControlsAndTabs",
+					name = "alwaysShowControls",
 					reload = false,
-					title = "Always show the controls/chat tabs",
-					description =
-					"Keep the chat controls and tabs fully visible instead of fading them when not hovered.",
+					title = "Always show",
+					description = "Keep the controls fully visible instead of fading them when not hovered.",
 					default = false,
 				},
 				{
-					name = "idleAlpha",
+					name = "controlsIdleAlpha",
 					reload = false,
-					dependsOn = "alwaysShowControlsAndTabs",
+					dependsOn = "alwaysShowControls",
 					enabledWhen = function()
-						return not core.config.alwaysShowControlsAndTabs;
+						return not core.config.alwaysShowControls;
 					end,
-					title = "Base controls/chat tabs opacity",
-					description = "Opacity of the controls/chat tabs when not hovered.",
+					title = "Opacity",
+					description = "Opacity of the controls when not hovered.",
 					default = 0,
 					min = 0,
 					max = 1,

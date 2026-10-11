@@ -194,8 +194,9 @@ local function CreateSelectedChatFramePositioner(row, chatFrame, buttons, contro
 		if config.chatBoxTop and selectedTab and not config.chatTabsAtBottom then
 			local chatTop = core.GetLayoutAnchor(selectedChatFrame):GetTop();
 			local tabEdge = config.chatBoxAboveTabs and selectedTab:GetTop() or selectedTab:GetBottom();
+			-- bounds are unavailable while frames are mid-drag/undock; keep the previous layout until they return
 			if not chatTop or not tabEdge then
-				error("ChitChat: Unable to determine selected chat frame tab bounds for chatBoxTop.");
+				return activeChatFrame or selectedChatFrame;
 			end;
 			editBoxTabOffset = tabEdge - chatTop;
 		end;
@@ -237,14 +238,102 @@ local function CreateSelectedChatFramePositioner(row, chatFrame, buttons, contro
 	end;
 end;
 
+-- Replaces blizz's dock overflow button with a control-styled one placed after the rightmost tab.
+-- The original stays shown (invisible, no mouse) so the dock scroll frame keeps reserving room for it.
+local function CreateOverflowControl(row)
+	local dock = GENERAL_CHAT_DOCK;
+	local original = dock and dock.overflowButton;
+	local mainTab = _G["ChatFrame1Tab"];
+	if not original or not mainTab then
+		return nil;
+	end;
+	local onClick = original:GetScript("OnClick");
+	local button = CreateControlButton(
+		UIParent,
+		"ChitChatOverflowButton",
+		controlIconPath .. "arrowdown.png",
+		"",
+		function(_, ...)
+			if onClick then
+				onClick(original, ...);
+			end;
+		end
+	);
+	button:SetScript("OnEnter", nil);
+	button:SetScript("OnLeave", nil);
+	button:SetSize(config.controlSize, config.controlSize);
+	button.ChitChatBackground = core.ApplyControlButtonIcon(button, button.ChitChatIcon);
+	original:EnableMouse(false);
+	-- hide only the original's textures, its alpha is inherited by the dropdown list
+	for _, texture in ipairs({ original:GetRegions() }) do
+		texture:SetAlpha(0);
+	end;
+
+	local function Update()
+		-- the control background extends past the button by the inset, so shrink the button to keep the visible size at tab height
+		local height = mainTab:GetHeight() - 2 * core.CONTROL_BACKGROUND_INSET;
+		local width = height;
+		local reserved = width + 2 * core.CONTROL_BACKGROUND_INSET + 4;
+		if original:GetWidth() ~= reserved or original:GetHeight() ~= mainTab:GetHeight() then
+			original:SetSize(reserved, mainTab:GetHeight());
+		end;
+		local list = original.list;
+		local _, listRelativeTo = list:GetPoint(1);
+		if list:GetNumPoints() ~= 1 or listRelativeTo ~= button then
+			list:ClearAllPoints();
+			list:SetPoint("TOPLEFT", button, "BOTTOMLEFT", 0, -4);
+		end;
+		if not original:IsShown() then
+			button:Hide();
+			return;
+		end;
+
+		local frameStrata = row:GetFrameStrata();
+		if button:GetFrameStrata() ~= frameStrata then
+			button:SetFrameStrata(frameStrata);
+		end;
+		if button:GetFrameLevel() ~= row:GetFrameLevel() + 1 then
+			button:SetFrameLevel(row:GetFrameLevel() + 1);
+		end;
+		if button:GetWidth() ~= width or button:GetHeight() ~= height then
+			button:SetSize(width, height);
+		end;
+
+		local mainLeft = mainTab:GetLeft();
+		if not mainLeft then
+			return;
+		end;
+		local rightEdge = 0;
+		for _, dockedFrame in ipairs(dock.DOCKED_CHAT_FRAMES or {}) do
+			local tab = _G[dockedFrame:GetName() .. "Tab"];
+			local tabRight = tab and tab:IsShown() and tab:GetRight();
+			if tabRight and tabRight > rightEdge then
+				rightEdge = tabRight;
+			end;
+		end;
+		local clipRight = dock.scrollFrame and dock.scrollFrame:GetRight();
+		if clipRight and rightEdge > clipRight then
+			rightEdge = clipRight;
+		end;
+		local x = rightEdge - mainLeft + core.CONTROL_BACKGROUND_INSET + 2;
+		local currentPoint, relativeTo, _, currentX = button:GetPoint(1);
+		if button:GetNumPoints() ~= 1 or relativeTo ~= mainTab or not currentX or math.abs(currentX - x) > 0.01 then
+			button:ClearAllPoints();
+			button:SetPoint("LEFT", mainTab, "LEFT", x, 0);
+		end;
+		button:Show();
+	end;
+	Update();
+	return button, Update;
+end;
+
 local function CreateControls(chatFrame)
 	local row = chatFrame.buttonFrame or _G["ChatFrame1ButtonFrame"];
 	if not row then
 		error("ChitChat: ChatFrame1ButtonFrame is unavailable.");
 	end;
-	if config.controlsOutside then
-		row:SetParent(UIParent);
-	end;
+	-- the row is a child of ChatFrame1, which gets hidden whenever another docked tab is selected
+	row:SetParent(UIParent);
 
 	local buttons = GetControlButtons(row);
 	local controlPosition = core.GetControlPosition();
@@ -278,28 +367,39 @@ local function CreateControls(chatFrame)
 	for _, button in ipairs(buttons) do
 		AddTrackedFrame(state.controlFrames, button, button.ChitChatBackground);
 	end;
+	local overflowButton, UpdateOverflow = CreateOverflowControl(row);
+	if overflowButton then
+		AddTrackedFrame(state.controlFrames, overflowButton, overflowButton.ChitChatBackground);
+	end;
 	row:SetAlpha(1);
 
 	local driver = CreateFrame("Frame", "ChitChatControlsFadeDriver");
 	driver:SetScript("OnUpdate", function(_, elapsed)
+		core:SyncChatTabs(state.trackedFrames);
 		local selectedChatFrame = PositionForSelectedChatFrame();
 		core.EnforceTabAnchor(chatFrame);
 		for index, button in ipairs(buttons) do
 			core.PositionControlButton(button, row, index, controlPosition);
+		end;
+		if UpdateOverflow then
+			UpdateOverflow();
+			overflowButton.ChitChatBackground:SetShown(overflowButton:IsShown());
 		end;
 		local hovered = IsAnyTrackedFrameHovered(state.trackedFrames);
 		if selectedChatFrame.IsMouseOver and selectedChatFrame:IsMouseOver() then
 			hovered = true;
 		end;
 
-		local alwaysShowControlsAndTabs = config.alwaysShowControlsAndTabs;
-		local tabTargetAlpha = (alwaysShowControlsAndTabs or hovered or IsCombatLogFrame(selectedChatFrame))
-			and 1 or config.idleAlpha;
+		local alwaysShowChatTabs = config.alwaysShowChatTabs;
+		local tabTargetAlpha = (alwaysShowChatTabs or hovered or IsCombatLogFrame(selectedChatFrame))
+			and 1 or (config.chatTabsIdleAlpha or 0);
 		local controlsHovered = AreControlButtonsHovered(row, buttons);
-		local controlTargetAlpha = (alwaysShowControlsAndTabs or controlsHovered) and 1 or config.idleAlpha;
-		local step = alwaysShowControlsAndTabs and 1 or math.min(elapsed / config.fadeDuration, 1);
-		UpdateTrackedFrameAlpha(state.trackedFrames, tabTargetAlpha, step, true);
-		UpdateTrackedFrameAlpha(state.controlFrames, controlTargetAlpha, step, false);
+		local alwaysShowControls = config.alwaysShowControls;
+		local controlTargetAlpha = (alwaysShowControls or controlsHovered) and 1 or (config.controlsIdleAlpha or 0);
+		local tabStep = alwaysShowChatTabs and 1 or math.min(elapsed / config.fadeDuration, 1);
+		local controlStep = alwaysShowControls and 1 or math.min(elapsed / config.fadeDuration, 1);
+		UpdateTrackedFrameAlpha(state.trackedFrames, tabTargetAlpha, tabStep, true);
+		UpdateTrackedFrameAlpha(state.controlFrames, controlTargetAlpha, controlStep, false);
 	end);
 end;
 

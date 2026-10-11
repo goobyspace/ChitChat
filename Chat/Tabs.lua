@@ -2,6 +2,11 @@ local _, core = ...;
 
 local config = core.config;
 
+local function GetTabHeight()
+	local _, fontHeight = ChatFontNormal:GetFont();
+	return math.max(config.tabHeight, math.ceil(fontHeight or 12) + 6);
+end;
+
 local function ApplyTabGradient(background)
 	return core.CreateGradientBackground(
 		background,
@@ -18,8 +23,7 @@ local function ApplyTabSkin(tab)
 	end;
 
 	core.HideDefaultTextures(tab);
-	local _, fontHeight = ChatFontNormal:GetFont();
-	tab:SetHeight(math.max(config.tabHeight, math.ceil(fontHeight or 12) + 6));
+	tab:SetHeight(GetTabHeight());
 	if tab.glow then
 		tab.glow:Hide();
 	end;
@@ -49,11 +53,10 @@ local function ApplyTabSkin(tab)
 	return tab.ChitChatBackground;
 end;
 
-function core:InitializeChatTabs()
-	local trackedFrames = {};
-	for index = 1, NUM_CHAT_WINDOWS do
+function core:SyncChatTabs(trackedFrames)
+	for index = 1, core.GetChatWindowCount() do
 		local tab = _G["ChatFrame" .. index .. "Tab"];
-		if tab then
+		if tab and not tab.ChitChatBackground then
 			tab:SetAlpha(1);
 			trackedFrames[#trackedFrames + 1] = {
 				frame = tab,
@@ -62,17 +65,42 @@ function core:InitializeChatTabs()
 			};
 		end;
 	end;
+end;
+
+function core:InitializeChatTabs()
+	local trackedFrames = {};
+	core:SyncChatTabs(trackedFrames);
 	return trackedFrames;
 end;
 
 function core:UpdateChatTab(entry)
 	local tab = entry.frame;
+	-- blizz fades tabs on its own (UIFrameFade) which fights our alpha, hiding the text of non-general tabs
+	if UIFrameFadeRemoveFrame then
+		UIFrameFadeRemoveFrame(tab);
+	end;
+	local tabText = tab.Text or tab:GetFontString();
+	if tabText and tabText:GetAlpha() ~= 1 then
+		tabText:SetAlpha(1);
+	end;
+	-- blizz resets the height of tabs when they are re-docked or resized
+	local height = GetTabHeight();
+	if tab:GetHeight() ~= height then
+		tab:SetHeight(height);
+	end;
 	local underline = tab.ChitChatSelectedUnderline;
 	if underline then
 		core.HideDefaultTextures(tab, underline);
 		local chatFrame = _G["ChatFrame" .. tab:GetID()];
 		local text = tab.Text or tab:GetFontString();
 		text:SetTextColor(1, 1, 1);
+		-- blizz repositions the text when it resizes a tab
+		local textPoint, textRelativeTo, textRelativePoint, textX, textY = text:GetPoint(1);
+		if text:GetNumPoints() ~= 1 or textPoint ~= "CENTER" or textRelativeTo ~= tab
+			or textRelativePoint ~= "CENTER" or textX ~= 0 or textY ~= 0 then
+			text:ClearAllPoints();
+			text:SetPoint("CENTER", tab, "CENTER", 0, 0);
+		end;
 		underline:SetWidth(math.max(text:GetStringWidth(), 1));
 		underline:SetShown(chatFrame == SELECTED_CHAT_FRAME);
 	end;

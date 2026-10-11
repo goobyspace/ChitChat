@@ -20,11 +20,7 @@ local function AddDependencies(context, settingInfo, initializer)
     end;
     initializer:SetParentInitializer(parent, settingInfo.enabledWhen);
 
-    for index = 2, #dependencies do
-        local additionalParent = context.initializersByKey[dependencies[index]];
-        if not additionalParent then
-            error("ChitChat: Missing parent setting initializer for " .. dependencies[index] .. ".");
-        end;
+    if #dependencies > 1 then
         initializer:AddModifyPredicate(settingInfo.enabledWhen);
     end;
 
@@ -34,12 +30,14 @@ local function AddDependencies(context, settingInfo, initializer)
             if baseInitFrame then baseInitFrame(self, frame); end;
             for index = 2, #dependencies do
                 local additionalParent = context.initializersByKey[dependencies[index]];
-                local setting = additionalParent:GetSetting();
-                frame.cbrHandles:SetOnValueChangedCallback(
-                    setting:GetVariable(),
-                    frame.EvaluateState,
-                    frame
-                );
+                if additionalParent then
+                    local setting = additionalParent:GetSetting();
+                    frame.cbrHandles:SetOnValueChangedCallback(
+                        setting:GetVariable(),
+                        frame.EvaluateState,
+                        frame
+                    );
+                end;
             end;
         end;
     end;

@@ -138,7 +138,7 @@ local function AttachTimestampToChatFrame(chatFrame)
 end;
 
 function core:RefreshChatTimestamps()
-	for index = 1, NUM_CHAT_WINDOWS do
+	for index = 1, core.GetChatWindowCount() do
 		local chatFrame = _G["ChatFrame" .. index];
 		if chatFrame and chatFrame.GetNumMessages and chatFrame.GetMessageInfo then
 			SeedChatMessageMetadata(chatFrame);
@@ -191,7 +191,7 @@ function core:InitializeTimestamps()
 	end;
 	timestampedAddMessage = WrapAddMessage(ChatFrameMixin.AddMessage);
 	ChatFrameMixin.AddMessage = timestampedAddMessage;
-	for index = 1, NUM_CHAT_WINDOWS do
+	for index = 1, core.GetChatWindowCount() do
 		AttachTimestampToChatFrame(_G["ChatFrame" .. index]);
 	end;
 	registered = true;

@@ -78,7 +78,7 @@ end;
 local function GetChatHistories()
 	local lineLimit = GetSavedLineCount();
 	local histories = {};
-	for frameIndex = 1, NUM_CHAT_WINDOWS do
+	for frameIndex = 1, core.GetChatWindowCount() do
 		local chatFrame = _G["ChatFrame" .. frameIndex];
 		if IsNormalChatFrame(chatFrame) then
 			local lines = {};
@@ -320,7 +320,7 @@ function core:RestoreChatHistory()
 		return;
 	end;
 
-	for frameIndex = 1, NUM_CHAT_WINDOWS do
+	for frameIndex = 1, core.GetChatWindowCount() do
 		local chatFrame = _G["ChatFrame" .. frameIndex];
 		local lines = histories[frameIndex];
 		if IsNormalChatFrame(chatFrame) and type(lines) == "table" and #lines > 0 then
