@@ -21,18 +21,57 @@ local function HideEditBoxBorders(editBox, keepTextures)
 	end;
 end;
 
+local function ApplyChatInputPoints(editBox)
+	editBox:ClearAllPoints();
+	for _, p in ipairs(editBox.ChitChatPoints) do
+		editBox:SetPoint(p[1], editBox.ChitChatAnchor, p[2], 0, p[3]);
+	end;
+end;
+
+-- blizz re-anchors the edit box to the raw chat frame (with its own x offsets), ignoring our padding
+local function RestoreChatInputPoints(editBox)
+	local points = editBox.ChitChatPoints;
+	if not points or editBox.ChitChatRestoring then
+		return;
+	end;
+
+	if core.GetLayoutAnchor(editBox.ChitChatChatFrame) ~= editBox.ChitChatAnchor then
+		editBox.ChitChatRestoring = true;
+		core:PositionChatInput(editBox, editBox.ChitChatChatFrame, editBox.ChitChatTab);
+		editBox.ChitChatRestoring = nil;
+		return;
+	end;
+	local matches = editBox:GetNumPoints() == #points;
+	if matches then
+		for index, p in ipairs(points) do
+			local point, relativeTo, relativePoint, x, y = editBox:GetPoint(index);
+			if point ~= p[1] or relativeTo ~= editBox.ChitChatAnchor or relativePoint ~= p[2]
+				or math.abs(x) > 0.01 or math.abs(y - p[3]) > 0.01 then
+				matches = false;
+				break;
+			end;
+		end;
+	end;
+	if not matches then
+		editBox.ChitChatRestoring = true;
+		ApplyChatInputPoints(editBox);
+		editBox.ChitChatRestoring = nil;
+	end;
+end;
+
 function core:PositionChatInput(editBox, chatFrame, tab)
 	if not editBox then
 		return;
 	end;
 
 	local height = math.max(editBox:GetHeight(), config.controlSize);
+	editBox.ChitChatChatFrame = chatFrame;
+	editBox.ChitChatTab = tab;
 	chatFrame = core.GetLayoutAnchor(chatFrame);
-	editBox:ClearAllPoints();
+	local points;
 	if config.chatBoxTop then
 		if config.chatTabsAtBottom then
-			editBox:SetPoint("BOTTOMLEFT", chatFrame, "TOPLEFT", 0, 2);
-			editBox:SetPoint("BOTTOMRIGHT", chatFrame, "TOPRIGHT", 0, 2);
+			points = { { "BOTTOMLEFT", "TOPLEFT", 2 }, { "BOTTOMRIGHT", "TOPRIGHT", 2 } };
 		elseif tab then
 			local chatTop = chatFrame:GetTop();
 			local tabEdge = config.chatBoxAboveTabs and tab:GetTop() or tab:GetBottom();
@@ -41,21 +80,20 @@ function core:PositionChatInput(editBox, chatFrame, tab)
 			end;
 			if config.chatBoxAboveTabs then
 				local offset = tabEdge - chatTop + 2;
-				editBox:SetPoint("BOTTOMLEFT", chatFrame, "TOPLEFT", 0, offset);
-				editBox:SetPoint("BOTTOMRIGHT", chatFrame, "TOPRIGHT", 0, offset);
+				points = { { "BOTTOMLEFT", "TOPLEFT", offset }, { "BOTTOMRIGHT", "TOPRIGHT", offset } };
 			else
 				local offset = tabEdge - chatTop - 2;
-				editBox:SetPoint("TOPLEFT", chatFrame, "TOPLEFT", 0, offset);
-				editBox:SetPoint("TOPRIGHT", chatFrame, "TOPRIGHT", 0, offset);
+				points = { { "TOPLEFT", "TOPLEFT", offset }, { "TOPRIGHT", "TOPRIGHT", offset } };
 			end;
 		else
-			editBox:SetPoint("BOTTOMLEFT", chatFrame, "TOPLEFT", 0, 2);
-			editBox:SetPoint("BOTTOMRIGHT", chatFrame, "TOPRIGHT", 0, 2);
+			points = { { "BOTTOMLEFT", "TOPLEFT", 2 }, { "BOTTOMRIGHT", "TOPRIGHT", 2 } };
 		end;
 	else
-		editBox:SetPoint("TOPLEFT", chatFrame, "BOTTOMLEFT", 0, -2);
-		editBox:SetPoint("TOPRIGHT", chatFrame, "BOTTOMRIGHT", 0, 0);
+		points = { { "TOPLEFT", "BOTTOMLEFT", -2 }, { "TOPRIGHT", "BOTTOMRIGHT", 0 } };
 	end;
+	editBox.ChitChatAnchor = chatFrame;
+	editBox.ChitChatPoints = points;
+	ApplyChatInputPoints(editBox);
 	editBox:SetHeight(height);
 	HideEditBoxBorders(editBox);
 end;
@@ -78,6 +116,9 @@ function core:InitializeChatInput(editBox)
 	);
 	local backgroundTextures = background.regions;
 	editBox.ChitChatBackgroundTextures = backgroundTextures;
+	editBox:HookScript("OnSizeChanged", function()
+		background:SetOpacity(1);
+	end);
 	HideEditBoxBorders(editBox, backgroundTextures);
 
 	local hoverState = {
@@ -88,9 +129,11 @@ function core:InitializeChatInput(editBox)
 	editBox:SetMouseClickEnabled(true);
 
 	editBox:HookScript("OnShow", function()
+		RestoreChatInputPoints(editBox);
 		HideEditBoxBorders(editBox, backgroundTextures);
 	end);
 	editBox:HookScript("OnUpdate", function()
+		RestoreChatInputPoints(editBox);
 		HideEditBoxBorders(editBox, backgroundTextures);
 	end);
 	editBox:HookScript("OnEnter", function()

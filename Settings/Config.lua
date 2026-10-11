@@ -84,6 +84,7 @@ core.Settings = {
 				},
 				{
 					name = "chitChatTimestampGap",
+					reload = false,
 					dependsOn = "chitChatShowTimestamps",
 					enabledWhen = function()
 						return core.config.chitChatShowTimestamps;
@@ -94,6 +95,7 @@ core.Settings = {
 				},
 				{
 					name = "chitChatTimestamp24Hour",
+					reload = false,
 					dependsOn = "chitChatShowTimestamps",
 					enabledWhen = function()
 						return core.config.chitChatShowTimestamps;
@@ -104,6 +106,7 @@ core.Settings = {
 				},
 				{
 					name = "chitChatTimestampLocalTime",
+					reload = false,
 					dependsOn = "chitChatShowTimestamps",
 					enabledWhen = function()
 						return core.config.chitChatShowTimestamps;
@@ -115,6 +118,7 @@ core.Settings = {
 				},
 				{
 					name = "chitChatTimestampColor",
+					reload = false,
 					dependsOn = "chitChatShowTimestamps",
 					enabledWhen = function()
 						return core.config.chitChatShowTimestamps;

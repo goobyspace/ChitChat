@@ -194,7 +194,7 @@ local function CreateSelectedChatFramePositioner(row, chatFrame, buttons, contro
 		if config.chatBoxTop and selectedTab and not config.chatTabsAtBottom then
 			local chatTop = core.GetLayoutAnchor(selectedChatFrame):GetTop();
 			local tabEdge = config.chatBoxAboveTabs and selectedTab:GetTop() or selectedTab:GetBottom();
-			-- bounds are unavailable while frames are mid-drag/undock; keep the previous layout until they return
+			-- bounds are unavailable while frames are mid-drag/undock
 			if not chatTop or not tabEdge then
 				return activeChatFrame or selectedChatFrame;
 			end;
@@ -238,8 +238,8 @@ local function CreateSelectedChatFramePositioner(row, chatFrame, buttons, contro
 	end;
 end;
 
--- Replaces blizz's dock overflow button with a control-styled one placed after the rightmost tab.
--- The original stays shown (invisible, no mouse) so the dock scroll frame keeps reserving room for it.
+-- replaces blizz's dock overflow button with a control-styled one placed after the rightmost tab.
+-- the original stays shown (invisible, no mouse) so the dock scroll frame keeps reserving room for it.
 local function CreateOverflowControl(row)
 	local dock = GENERAL_CHAT_DOCK;
 	local original = dock and dock.overflowButton;
@@ -264,7 +264,6 @@ local function CreateOverflowControl(row)
 	button:SetSize(config.controlSize, config.controlSize);
 	button.ChitChatBackground = core.ApplyControlButtonIcon(button, button.ChitChatIcon);
 	original:EnableMouse(false);
-	-- hide only the original's textures, its alpha is inherited by the dropdown list
 	for _, texture in ipairs({ original:GetRegions() }) do
 		texture:SetAlpha(0);
 	end;
@@ -363,13 +362,14 @@ local function CreateControls(chatFrame)
 	local state = {
 		trackedFrames = core:InitializeChatTabs(),
 		controlFrames = {},
+		overflowFrames = {},
 	};
 	for _, button in ipairs(buttons) do
 		AddTrackedFrame(state.controlFrames, button, button.ChitChatBackground);
 	end;
 	local overflowButton, UpdateOverflow = CreateOverflowControl(row);
 	if overflowButton then
-		AddTrackedFrame(state.controlFrames, overflowButton, overflowButton.ChitChatBackground);
+		AddTrackedFrame(state.overflowFrames, overflowButton, overflowButton.ChitChatBackground);
 	end;
 	row:SetAlpha(1);
 
@@ -385,7 +385,8 @@ local function CreateControls(chatFrame)
 			UpdateOverflow();
 			overflowButton.ChitChatBackground:SetShown(overflowButton:IsShown());
 		end;
-		local hovered = IsAnyTrackedFrameHovered(state.trackedFrames);
+		local hovered = IsAnyTrackedFrameHovered(state.trackedFrames)
+			or IsAnyTrackedFrameHovered(state.overflowFrames);
 		if selectedChatFrame.IsMouseOver and selectedChatFrame:IsMouseOver() then
 			hovered = true;
 		end;
@@ -399,6 +400,7 @@ local function CreateControls(chatFrame)
 		local tabStep = alwaysShowChatTabs and 1 or math.min(elapsed / config.fadeDuration, 1);
 		local controlStep = alwaysShowControls and 1 or math.min(elapsed / config.fadeDuration, 1);
 		UpdateTrackedFrameAlpha(state.trackedFrames, tabTargetAlpha, tabStep, true);
+		UpdateTrackedFrameAlpha(state.overflowFrames, tabTargetAlpha, tabStep, false);
 		UpdateTrackedFrameAlpha(state.controlFrames, controlTargetAlpha, controlStep, false);
 	end);
 end;

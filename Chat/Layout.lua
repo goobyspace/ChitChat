@@ -16,7 +16,7 @@ local function HookChatFrameCornerPosition(chatFrame)
 	hooksecurefunc(chatFrame, "OnDragStart", function()
 		chatFrame.ChitChatEditModeDragging = true;
 	end);
-	-- Post-hook instead of replacing the method, so Blizzard's edit mode code stays untainted.
+
 	hooksecurefunc(chatFrame, "OnSystemPositionChange", function(frame)
 		local normalizeCorner = frame.ChitChatEditModeDragging;
 		frame.ChitChatEditModeDragging = nil;
@@ -129,14 +129,26 @@ local function GetCombatLogBarHeight(frame)
 	return 0;
 end;
 
+-- this broke being able to click hyperlinks in chat so use it sparingly
 local function AnchorMessageContainer(frame, container, inner)
+	local topOffset = -GetCombatLogBarHeight(frame);
+	if container:GetNumPoints() == 2 then
+		local topPoint, topRelativeTo, topRelativePoint, topX, topY = container:GetPoint(1);
+		local bottomPoint, bottomRelativeTo, bottomRelativePoint, bottomX, bottomY = container:GetPoint(2);
+		if topPoint == "TOPLEFT" and topRelativeTo == inner and topRelativePoint == "TOPLEFT"
+			and math.abs(topX) < 0.01 and math.abs(topY - topOffset) < 0.01
+			and bottomPoint == "BOTTOMRIGHT" and bottomRelativeTo == inner and bottomRelativePoint == "BOTTOMRIGHT"
+			and math.abs(bottomX) < 0.01 and math.abs(bottomY) < 0.01 then
+			return;
+		end;
+	end;
 	container:ClearAllPoints();
-	container:SetPoint("TOPLEFT", inner, "TOPLEFT", 0, -GetCombatLogBarHeight(frame));
+	container:SetPoint("TOPLEFT", inner, "TOPLEFT", 0, topOffset);
 	container:SetPoint("BOTTOMRIGHT", inner, "BOTTOMRIGHT", 0, 0);
 	container:SetClipsChildren(true);
 end;
 
--- undocked windows keep the anchors from when they were docked, which clips their messages to the main window
+-- we have to update the positions because otherwise outside messages get clipped from the main box's boundary
 function core.SyncMessageContainers()
 	local main = _G["ChatFrame1"];
 	for index = 1, core.GetChatWindowCount() do
@@ -166,7 +178,6 @@ local function ClipMessagesToInner(main)
 	end;
 end;
 
--- blizz anchors the combat log filter bar relative to the selected tab, so it moves around; pin it inside the inner area
 function core.PositionCombatLogBar()
 	local bar = CombatLogQuickButtonFrame_Custom;
 	local main = _G["ChatFrame1"];
@@ -234,7 +245,6 @@ function core.PositionChatFrameForPadding(chatFrame)
 	local tab = _G["ChatFrame1Tab"];
 	local metrics = GetTabMetrics(chatFrame, tab);
 	if not metrics then
-		-- tab geometry isn't resolved yet, continue as soon as either frame gets sized
 		WaitForTabGeometry(chatFrame, tab);
 		return;
 	end;
@@ -269,7 +279,30 @@ function core.PositionChatFrameForPadding(chatFrame)
 	core.EnforceTabAnchor(chatFrame);
 end;
 
--- Tabs beyond the static ones live in the dock's clipped scroll frame, which blizz anchors to the dock instead of the first tab
+local function AlignDockToInner(chatFrame)
+	local dock = GENERAL_CHAT_DOCK;
+	local insets = chatFrame.ChitChatSelectionInsets;
+	if not dock or not insets then
+		return;
+	end;
+	local left, right = insets[1], insets[2];
+	local function IsAligned(index, point, x)
+		local currentPoint, relativeTo, relativePoint, currentX, currentY = dock:GetPoint(index);
+		return currentPoint == point and relativeTo == chatFrame and
+			relativePoint == (point == "BOTTOMLEFT" and "TOPLEFT" or "TOPRIGHT")
+			and math.abs(currentX - x) < 0.01 and currentY == 3;
+	end;
+	if dock:GetNumPoints() == 2 and IsAligned(1, "BOTTOMLEFT", left) and IsAligned(2, "BOTTOMRIGHT", -right) then
+		return;
+	end;
+	dock:ClearAllPoints();
+	dock:SetPoint("BOTTOMLEFT", chatFrame, "TOPLEFT", left, 3);
+	dock:SetPoint("BOTTOMRIGHT", chatFrame, "TOPRIGHT", -right, 3);
+	if FCFDock_OnPrimarySizeChanged then
+		FCFDock_OnPrimarySizeChanged(dock);
+	end;
+end;
+
 local function AlignDockScrollFrame(firstTab)
 	local dock = GENERAL_CHAT_DOCK;
 	local scrollFrame = dock and dock.scrollFrame;
@@ -293,7 +326,6 @@ local function AlignDockScrollFrame(firstTab)
 	if overflow and overflow:IsShown() and overflow:GetLeft() then
 		rightOffset = overflow:GetLeft() - dockRight - 5;
 	end;
-	-- The padding keeps the tabs from being clipped by the scroll frame, the extra 2 lowers it onto the first tab's row.
 	local padding = 4;
 	local topOffset = padding;
 	local bottomOffset = tabBottom - dockBottom - padding - 2;
@@ -337,6 +369,7 @@ function core.EnforceTabAnchor(chatFrame)
 		tab:ClearAllPoints();
 		tab:SetPoint(point, inner, point, 0, offset);
 	end;
+	AlignDockToInner(chatFrame);
 	AlignDockScrollFrame(tab);
 end;
 

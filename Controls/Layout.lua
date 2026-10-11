@@ -20,7 +20,6 @@ function core.GetControlPosition()
 	return position;
 end;
 
--- The gap setting is measured between the black background edges, which overhang each button
 function core.GetControlStep()
 	return config.controlSize + config.controlSpacing + 2 * core.CONTROL_BACKGROUND_INSET;
 end;
@@ -120,8 +119,7 @@ local function GetControlRowAnchors(chatFrame, position, selectedTab, isCombatLo
 		and not position.bottom
 		and selectedTab then
 		rowPoint = "TOP" .. position.horizontal;
-		framePoint = "BOTTOM" .. position.horizontal;
-		relativeTo = selectedTab;
+		framePoint = "TOP" .. position.horizontal;
 		offsetY = -(config.controlSize + 2);
 	elseif not config.controlsVertical and config.controlsOutside and not position.bottom then
 		rowPoint = "BOTTOM" .. position.horizontal;

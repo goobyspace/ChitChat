@@ -131,6 +131,9 @@ local function ScheduleChatHistorySave()
 	end;
 
 	historySaveScheduled = true;
+
+	-- the save is delayed a frame to make sure blizz's chat has time to add the message in
+	-- without it sometimes you'll race the blizz chat and win and there'll be no new message yet
 	C_Timer.After(0, function()
 		historySaveScheduled = false;
 		if not config.historyEnabled then
@@ -153,7 +156,6 @@ function core:InitializeChatHistorySaving()
 
 	historySavingInitialized = true;
 
-	-- The save is deferred a frame, so Blizzard's chat frames have already added the message.
 	local messageEvents = CreateFrame("Frame");
 	local registered = {};
 	local function RegisterMessageEvent(event)

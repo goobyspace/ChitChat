@@ -192,9 +192,11 @@ local function CreateLineBackground(chatFrame, line)
 	alpha:SetToAlpha(1);
 	alpha:SetDuration(config.slideDuration);
 	alpha:SetSmoothing("OUT");
+	-- the container clips to the chat area, so backgrounds parented to it can't spill over the tabs or outside the window
+	local backgroundParent = chatFrame.FontStringContainer or line:GetParent() or chatFrame;
 	local surface;
 	if horizontalPadding > 0 or verticalPadding > 0 then
-		local texture = (line:GetParent() or chatFrame):CreateTexture(nil, "BACKGROUND", nil, -8);
+		local texture = backgroundParent:CreateTexture(nil, "BACKGROUND", nil, -8);
 		texture:SetPoint("TOPLEFT", line, "TOPLEFT", -horizontalPadding, verticalPadding);
 		texture:SetPoint("BOTTOMRIGHT", line, "BOTTOMRIGHT", horizontalPadding, -verticalPadding);
 
@@ -238,7 +240,7 @@ local function CreateLineBackground(chatFrame, line)
 		end;
 	else
 		surface = core.CreateGradientBackground(
-			chatFrame,
+			backgroundParent,
 			line,
 			"message",
 			0,
@@ -403,14 +405,36 @@ local function UpdateBackgroundOpacity(_, elapsed)
 	end;
 end;
 
+local function SyncBackgroundArea(chatFrame)
+	local area = chatFrame.ChitChatBackgroundArea;
+	if not area then
+		return;
+	end;
+	local anchor = core.GetLayoutAnchor(chatFrame);
+	local _, relativeTo = area:GetPoint(1);
+	if area:GetNumPoints() ~= 2 or relativeTo ~= anchor then
+		area:ClearAllPoints();
+		area:SetPoint("TOPLEFT", anchor, "TOPLEFT", 0, 0);
+		area:SetPoint("BOTTOMRIGHT", anchor, "BOTTOMRIGHT", 0, 0);
+	end;
+end;
+
 local function AttachToChatFrame(chatFrame)
 	if not chatFrame or chatFrames[chatFrame] or not chatFrame.AddOnDisplayRefreshedCallback then
 		return;
 	end;
 
 	HideChatFrameTextures(chatFrame);
-	local chatBackground = core.CreateGradientBackground(chatFrame, chatFrame, "chat", 1, "BACKGROUND", -8);
+
+	local backgroundArea = CreateFrame("Frame", nil, chatFrame);
+	chatFrame.ChitChatBackgroundArea = backgroundArea;
+	SyncBackgroundArea(chatFrame);
+	local chatBackground = core.CreateGradientBackground(chatFrame, backgroundArea, "chat", 1, "BACKGROUND", -8);
+	backgroundArea:SetScript("OnSizeChanged", function()
+		chatBackground:SetOpacity(1);
+	end);
 	chatFrame:HookScript("OnSizeChanged", function()
+		SyncBackgroundArea(chatFrame);
 		chatBackground:SetOpacity(1);
 	end);
 
@@ -454,7 +478,7 @@ function core.GetChatWindowCount()
 	return math.max(NUM_CHAT_WINDOWS or 0, CHAT_FRAMES and #CHAT_FRAMES or 0);
 end;
 
--- windows opened later by the user are created on demand, so they have to be picked up after login
+-- cant not style newly created frames
 function core:AttachNewChatFrames()
 	for index = 1, core.GetChatWindowCount() do
 		AttachToChatFrame(_G["ChatFrame" .. index]);
@@ -465,6 +489,9 @@ local driver = CreateFrame("Frame", "ChitChatMessageFadeDriver");
 driver:SetScript("OnUpdate", function(frame, elapsed)
 	core:AttachNewChatFrames();
 	core.SyncMessageContainers();
+	for chatFrame in pairs(chatFrames) do
+		SyncBackgroundArea(chatFrame);
+	end;
 	UpdateBackgroundOpacity(frame, elapsed);
 end);
 

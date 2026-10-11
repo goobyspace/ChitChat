@@ -89,9 +89,29 @@ function core:InitializeChatTabs()
 	return trackedFrames;
 end;
 
+local function SyncTabBackground(tab)
+	local background = tab.ChitChatBackground;
+	if not background then
+		return;
+	end;
+	local parent = tab:GetParent() or UIParent;
+	if background:GetParent() ~= parent then
+		background:SetParent(parent);
+	end;
+	local strata = tab:GetFrameStrata();
+	if background:GetFrameStrata() ~= strata then
+		background:SetFrameStrata(strata);
+	end;
+	local level = math.max(parent:GetFrameLevel(), tab:GetFrameLevel() - 1);
+	if background:GetFrameLevel() ~= level then
+		background:SetFrameLevel(level);
+	end;
+end;
+
 function core:UpdateChatTab(entry)
 	local tab = entry.frame;
-	-- blizz fades tabs on its own (UIFrameFade) which fights our alpha, hiding the text of non-general tabs
+	SyncTabBackground(tab);
+	-- blizz fades tabs on its own (UIFrameFade) which fights our alpha, hiding the text of scrolling tabs
 	if UIFrameFadeRemoveFrame then
 		UIFrameFadeRemoveFrame(tab);
 	end;

@@ -64,6 +64,12 @@ local function CreateCloseBarReloadButton()
     local closeButton = SettingsPanel and SettingsPanel.CloseButton;
     if not closeButton then return; end;
 
+    closeButton:HookScript("OnClick", function()
+        if reloadButtonAdded then
+            C_UI.Reload();
+        end;
+    end);
+
     local button = CreateFrame("Button", nil, SettingsPanel, "UIPanelButtonTemplate");
     button:SetText("Reload");
     button:SetSize(closeButton:GetWidth(), closeButton:GetHeight());
