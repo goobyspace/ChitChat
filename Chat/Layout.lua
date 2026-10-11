@@ -3,7 +3,7 @@
 
 local _, core = ...;
 
-local config = core.config;
+local GetConfig = core.GetConfig;
 
 local ClampChatFrameToScreen = core.ClampChatFrameToScreen;
 
@@ -59,7 +59,7 @@ local function GetTabMetrics(chatFrame, tab)
 		return nil;
 	end;
 
-	local heightDelta = tab and (tab:GetHeight() - config.tabHeight) or 0;
+	local heightDelta = tab and (tab:GetHeight() - GetConfig(chatFrame, "tabHeight")) or 0;
 	local metrics = {
 		above = tab and tabTop - chatTop - heightDelta or 0,
 		below = tab and chatBottom - tabBottom or 0,
@@ -72,23 +72,23 @@ local function GetOuterElementInsets(chatFrame, tab, metrics)
 	local left, right, top, bottom = 0, 0, 0, 0;
 
 	if tab then
-		if config.chatTabsAtBottom then
+		if GetConfig(chatFrame, "chatTabsAtBottom") then
 			bottom = math.max(bottom, metrics.below);
-		elseif not config.chatBoxTop then
+		elseif not GetConfig(chatFrame, "chatBoxTop") then
 			top = math.max(top, metrics.above);
 		end;
 	end;
 
-	if not config.chatBoxTop then
+	if not GetConfig(chatFrame, "chatBoxTop") then
 		local editBox = chatFrame.editBox;
-		local editBoxHeight = editBox and math.max(editBox:GetHeight(), config.controlSize) or 0;
+		local editBoxHeight = editBox and math.max(editBox:GetHeight(), GetConfig(chatFrame, "controlSize")) or 0;
 		bottom = math.max(bottom, editBoxHeight + 2);
 	end;
 
-	if config.controlsOutside then
-		local position = core.GetControlPosition();
-		local size = config.controlSize + 2;
-		if config.controlsVertical then
+	if GetConfig(chatFrame, "controlsOutside") then
+		local position = core.GetControlPosition(chatFrame);
+		local size = GetConfig(chatFrame, "controlSize") + 2;
+		if GetConfig(chatFrame, "controlsVertical") then
 			if position.right then
 				right = math.max(right, size);
 			else
@@ -97,7 +97,7 @@ local function GetOuterElementInsets(chatFrame, tab, metrics)
 		elseif position.bottom then
 			bottom = math.max(bottom, size);
 		else
-			top = math.max(top, size + (tab and not config.chatTabsAtBottom and math.max(0, metrics.above) or 0));
+			top = math.max(top, size + (tab and not GetConfig(chatFrame, "chatTabsAtBottom") and math.max(0, metrics.above) or 0));
 		end;
 	end;
 
@@ -129,22 +129,36 @@ local function GetCombatLogBarHeight(frame)
 	return 0;
 end;
 
+core.SCROLLBAR_WIDTH = 8;
+
+-- horizontal space the optional scrollbar takes from the messages
+local function GetScrollBarInsets(frame)
+	if not GetConfig(frame, "showScrollbar") then
+		return 0, 0;
+	end;
+	if GetConfig(frame, "scrollbarSideStringifiedValue") == "LEFT" then
+		return core.SCROLLBAR_WIDTH + 2, 0;
+	end;
+	return 0, core.SCROLLBAR_WIDTH + 2;
+end;
+
 -- this broke being able to click hyperlinks in chat so use it sparingly
 local function AnchorMessageContainer(frame, container, inner)
 	local topOffset = -GetCombatLogBarHeight(frame);
+	local leftInset, rightInset = GetScrollBarInsets(frame);
 	if container:GetNumPoints() == 2 then
 		local topPoint, topRelativeTo, topRelativePoint, topX, topY = container:GetPoint(1);
 		local bottomPoint, bottomRelativeTo, bottomRelativePoint, bottomX, bottomY = container:GetPoint(2);
 		if topPoint == "TOPLEFT" and topRelativeTo == inner and topRelativePoint == "TOPLEFT"
-			and math.abs(topX) < 0.01 and math.abs(topY - topOffset) < 0.01
+			and math.abs(topX - leftInset) < 0.01 and math.abs(topY - topOffset) < 0.01
 			and bottomPoint == "BOTTOMRIGHT" and bottomRelativeTo == inner and bottomRelativePoint == "BOTTOMRIGHT"
-			and math.abs(bottomX) < 0.01 and math.abs(bottomY) < 0.01 then
+			and math.abs(bottomX + rightInset) < 0.01 and math.abs(bottomY) < 0.01 then
 			return;
 		end;
 	end;
 	container:ClearAllPoints();
-	container:SetPoint("TOPLEFT", inner, "TOPLEFT", 0, topOffset);
-	container:SetPoint("BOTTOMRIGHT", inner, "BOTTOMRIGHT", 0, 0);
+	container:SetPoint("TOPLEFT", inner, "TOPLEFT", leftInset, topOffset);
+	container:SetPoint("BOTTOMRIGHT", inner, "BOTTOMRIGHT", -rightInset, 0);
 	container:SetClipsChildren(true);
 end;
 
@@ -248,17 +262,19 @@ function core.PositionChatFrameForPadding(chatFrame)
 		WaitForTabGeometry(chatFrame, tab);
 		return;
 	end;
-	local paddingLeft, paddingRight, paddingTop, paddingBottom = config.paddingLeft,
-		config.paddingRight, config.paddingTop, config.paddingBottom;
+	local paddingLeft, paddingRight, paddingTop, paddingBottom = GetConfig(chatFrame, "paddingLeft"),
+		GetConfig(chatFrame, "paddingRight"), GetConfig(chatFrame, "paddingTop"),
+		GetConfig(chatFrame, "paddingBottom");
 	local insetLeft, insetRight, insetTop, insetBottom = GetOuterElementInsets(chatFrame, tab, metrics);
 	paddingLeft = paddingLeft + insetLeft;
 	paddingRight = paddingRight + insetRight;
 	paddingTop = paddingTop + insetTop;
 	paddingBottom = paddingBottom + insetBottom;
-	if config.chatBoxTop then
+	if GetConfig(chatFrame, "chatBoxTop") then
 		local editBox = chatFrame.editBox;
-		local editBoxHeight = editBox and math.max(editBox:GetHeight(), config.controlSize) or 0;
-		local tabOffset = tab and not config.chatTabsAtBottom and config.chatBoxAboveTabs and metrics.above or 0;
+		local editBoxHeight = editBox and math.max(editBox:GetHeight(), GetConfig(chatFrame, "controlSize")) or 0;
+		local tabOffset = tab and not GetConfig(chatFrame, "chatTabsAtBottom")
+			and GetConfig(chatFrame, "chatBoxAboveTabs") and metrics.above or 0;
 		paddingTop = paddingTop + editBoxHeight + 2 + tabOffset;
 	end;
 	chatFrame.ChitChatSelectionInsets = { paddingLeft, paddingRight, paddingTop, paddingBottom };
@@ -286,18 +302,25 @@ local function AlignDockToInner(chatFrame)
 		return;
 	end;
 	local left, right = insets[1], insets[2];
+	-- blizz uses the dock's rect to detect dropped windows, so it has to sit on the tab row wherever the tabs are moved to
+	local y = 3;
+	local tab = _G["ChatFrame1Tab"];
+	local tabBottom, chatTop = tab and tab:GetBottom(), chatFrame:GetTop();
+	if tabBottom and chatTop then
+		y = tabBottom - chatTop;
+	end;
 	local function IsAligned(index, point, x)
 		local currentPoint, relativeTo, relativePoint, currentX, currentY = dock:GetPoint(index);
 		return currentPoint == point and relativeTo == chatFrame and
 			relativePoint == (point == "BOTTOMLEFT" and "TOPLEFT" or "TOPRIGHT")
-			and math.abs(currentX - x) < 0.01 and currentY == 3;
+			and math.abs(currentX - x) < 0.01 and math.abs(currentY - y) < 0.01;
 	end;
 	if dock:GetNumPoints() == 2 and IsAligned(1, "BOTTOMLEFT", left) and IsAligned(2, "BOTTOMRIGHT", -right) then
 		return;
 	end;
 	dock:ClearAllPoints();
-	dock:SetPoint("BOTTOMLEFT", chatFrame, "TOPLEFT", left, 3);
-	dock:SetPoint("BOTTOMRIGHT", chatFrame, "TOPRIGHT", -right, 3);
+	dock:SetPoint("BOTTOMLEFT", chatFrame, "TOPLEFT", left, y);
+	dock:SetPoint("BOTTOMRIGHT", chatFrame, "TOPRIGHT", -right, y);
 	if FCFDock_OnPrimarySizeChanged then
 		FCFDock_OnPrimarySizeChanged(dock);
 	end;
@@ -360,7 +383,7 @@ function core.EnforceTabAnchor(chatFrame)
 	if not tab or not inner or not metrics then
 		return;
 	end;
-	local atBottom = config.chatTabsAtBottom;
+	local atBottom = GetConfig(chatFrame, "chatTabsAtBottom");
 	local point = atBottom and "BOTTOMLEFT" or "TOPLEFT";
 	local offset = atBottom and -metrics.below or metrics.above;
 	local currentPoint, relativeTo, relativePoint, x, y = tab:GetPoint(1);

@@ -3,7 +3,7 @@
 
 local _, core = ...;
 
-local config = core.config;
+local GetConfig = core.GetConfig;
 local controlIconPath = "Interface\\AddOns\\ChitChat\\Assets\\";
 
 local function IsCombatLogFrame(chatFrame)
@@ -174,7 +174,7 @@ local function UpdateTrackedFrameAlpha(trackedFrames, targetAlpha, step, updateC
 	end;
 end;
 
-local function CreateSelectedChatFramePositioner(row, chatFrame, buttons, controlPosition, mainTab)
+local function CreateSelectedChatFramePositioner(row, chatFrame, buttons, mainTab)
 	local activeChatFrame;
 	local activeEditBox;
 	local activeEditBoxTabOffset;
@@ -191,9 +191,11 @@ local function CreateSelectedChatFramePositioner(row, chatFrame, buttons, contro
 		selectedTab = selectedTab or mainTab;
 
 		local editBoxTabOffset;
-		if config.chatBoxTop and selectedTab and not config.chatTabsAtBottom then
+		if GetConfig(selectedChatFrame, "chatBoxTop") and selectedTab
+			and not GetConfig(selectedChatFrame, "chatTabsAtBottom") then
 			local chatTop = core.GetLayoutAnchor(selectedChatFrame):GetTop();
-			local tabEdge = config.chatBoxAboveTabs and selectedTab:GetTop() or selectedTab:GetBottom();
+			local tabEdge = GetConfig(selectedChatFrame, "chatBoxAboveTabs") and selectedTab:GetTop()
+				or selectedTab:GetBottom();
 			-- bounds are unavailable while frames are mid-drag/undock
 			if not chatTop or not tabEdge then
 				return activeChatFrame or selectedChatFrame;
@@ -223,7 +225,7 @@ local function CreateSelectedChatFramePositioner(row, chatFrame, buttons, contro
 			row,
 			selectedChatFrame,
 			#buttons,
-			controlPosition,
+			core.GetControlPosition(selectedChatFrame),
 			selectedTab,
 			IsCombatLogFrame(selectedChatFrame)
 		);
@@ -240,7 +242,7 @@ end;
 
 -- replaces blizz's dock overflow button with a control-styled one placed after the rightmost tab.
 -- the original stays shown (invisible, no mouse) so the dock scroll frame keeps reserving room for it.
-local function CreateOverflowControl(row)
+local function CreateOverflowControl(row, chatFrame)
 	local dock = GENERAL_CHAT_DOCK;
 	local original = dock and dock.overflowButton;
 	local mainTab = _G["ChatFrame1Tab"];
@@ -261,8 +263,8 @@ local function CreateOverflowControl(row)
 	);
 	button:SetScript("OnEnter", nil);
 	button:SetScript("OnLeave", nil);
-	button:SetSize(config.controlSize, config.controlSize);
-	button.ChitChatBackground = core.ApplyControlButtonIcon(button, button.ChitChatIcon);
+	button:SetSize(GetConfig(chatFrame, "controlSize"), GetConfig(chatFrame, "controlSize"));
+	button.ChitChatBackground = core.ApplyControlButtonIcon(button, button.ChitChatIcon, chatFrame);
 	original:EnableMouse(false);
 	for _, texture in ipairs({ original:GetRegions() }) do
 		texture:SetAlpha(0);
@@ -335,7 +337,7 @@ local function CreateControls(chatFrame)
 	row:SetParent(UIParent);
 
 	local buttons = GetControlButtons(row);
-	local controlPosition = core.GetControlPosition();
+	local controlPosition = core.GetControlPosition(chatFrame);
 
 	HideControlRowDecorations(row);
 	local mainTab = _G["ChatFrame1Tab"];
@@ -350,12 +352,12 @@ local function CreateControls(chatFrame)
 	core.SetControlLayering(row, chatFrame, chatFrame.editBox);
 
 	local PositionForSelectedChatFrame =
-		CreateSelectedChatFramePositioner(row, chatFrame, buttons, controlPosition, mainTab);
+		CreateSelectedChatFramePositioner(row, chatFrame, buttons, mainTab);
 
 	PositionForSelectedChatFrame();
 
 	for index, button in ipairs(buttons) do
-		core.PositionControlButton(button, row, index, controlPosition);
+		core.PositionControlButton(button, row, index, controlPosition, chatFrame);
 		button:Show();
 	end;
 
@@ -367,7 +369,7 @@ local function CreateControls(chatFrame)
 	for _, button in ipairs(buttons) do
 		AddTrackedFrame(state.controlFrames, button, button.ChitChatBackground);
 	end;
-	local overflowButton, UpdateOverflow = CreateOverflowControl(row);
+	local overflowButton, UpdateOverflow = CreateOverflowControl(row, chatFrame);
 	if overflowButton then
 		AddTrackedFrame(state.overflowFrames, overflowButton, overflowButton.ChitChatBackground);
 	end;
@@ -379,7 +381,7 @@ local function CreateControls(chatFrame)
 		local selectedChatFrame = PositionForSelectedChatFrame();
 		core.EnforceTabAnchor(chatFrame);
 		for index, button in ipairs(buttons) do
-			core.PositionControlButton(button, row, index, controlPosition);
+			core.PositionControlButton(button, row, index, core.GetControlPosition(selectedChatFrame), selectedChatFrame);
 		end;
 		if UpdateOverflow then
 			UpdateOverflow();
@@ -391,14 +393,16 @@ local function CreateControls(chatFrame)
 			hovered = true;
 		end;
 
-		local alwaysShowChatTabs = config.alwaysShowChatTabs;
+		local alwaysShowChatTabs = GetConfig(selectedChatFrame, "alwaysShowChatTabs");
 		local tabTargetAlpha = (alwaysShowChatTabs or hovered or IsCombatLogFrame(selectedChatFrame))
-			and 1 or (config.chatTabsIdleAlpha or 0);
+			and 1 or (GetConfig(selectedChatFrame, "chatTabsIdleAlpha") or 0);
 		local controlsHovered = AreControlButtonsHovered(row, buttons);
-		local alwaysShowControls = config.alwaysShowControls;
-		local controlTargetAlpha = (alwaysShowControls or controlsHovered) and 1 or (config.controlsIdleAlpha or 0);
-		local tabStep = alwaysShowChatTabs and 1 or math.min(elapsed / config.fadeDuration, 1);
-		local controlStep = alwaysShowControls and 1 or math.min(elapsed / config.fadeDuration, 1);
+		local alwaysShowControls = GetConfig(selectedChatFrame, "alwaysShowControls");
+		local controlTargetAlpha = (alwaysShowControls or controlsHovered) and 1
+			or (GetConfig(selectedChatFrame, "controlsIdleAlpha") or 0);
+		local fadeDuration = GetConfig(selectedChatFrame, "fadeDuration");
+		local tabStep = alwaysShowChatTabs and 1 or math.min(elapsed / fadeDuration, 1);
+		local controlStep = alwaysShowControls and 1 or math.min(elapsed / fadeDuration, 1);
 		UpdateTrackedFrameAlpha(state.trackedFrames, tabTargetAlpha, tabStep, true);
 		UpdateTrackedFrameAlpha(state.overflowFrames, tabTargetAlpha, tabStep, false);
 		UpdateTrackedFrameAlpha(state.controlFrames, controlTargetAlpha, controlStep, false);

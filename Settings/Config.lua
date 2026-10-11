@@ -2,46 +2,27 @@ local _, core = ...;
 
 ChitChatGlobalStorage = ChitChatGlobalStorage or {};
 
-local timestampSettingKeys = {
-	{ "showTimestamps",     "chitChatShowTimestamps" },
-	{ "timestamp24Hour",    "chitChatTimestamp24Hour" },
-	{ "timestampLocalTime", "chitChatTimestampLocalTime" },
-};
-
-for _, keys in ipairs(timestampSettingKeys) do
-	local oldKey, newKey = keys[1], keys[2];
-	if ChitChatGlobalStorage[newKey] == nil and ChitChatGlobalStorage[oldKey] ~= nil then
-		ChitChatGlobalStorage[newKey] = ChitChatGlobalStorage[oldKey];
+local function GetChatFrameId(chatFrame)
+	if type(chatFrame) == "table" and chatFrame.GetID then
+		return chatFrame:GetID();
 	end;
+	return chatFrame;
 end;
 
-local visibilitySettingKeys = {
-	{ "alwaysShowControlsAndTabs", "alwaysShowControls", "alwaysShowChatTabs" },
-	{ "idleAlpha",                 "controlsIdleAlpha",  "chatTabsIdleAlpha" },
-};
-
-for _, keys in ipairs(visibilitySettingKeys) do
-	local oldKey = keys[1];
-	for index = 2, #keys do
-		local newKey = keys[index];
-		if ChitChatGlobalStorage[newKey] == nil and ChitChatGlobalStorage[oldKey] ~= nil then
-			ChitChatGlobalStorage[newKey] = ChitChatGlobalStorage[oldKey];
+-- TODO: actually change settings per frame
+-- needs a bunch more work than just getting the config but this will make it easier
+function core.GetConfig(chatFrame, key)
+	if chatFrame and ChitChatGlobalStorage.perTabSettings then
+		local overrides = ChitChatGlobalStorage.tabOverrides;
+		local id = GetChatFrameId(chatFrame);
+		local frameOverrides = overrides and id and overrides[id];
+		local value = frameOverrides and frameOverrides[key];
+		if value ~= nil then
+			return value;
 		end;
 	end;
+	return ChitChatGlobalStorage[key];
 end;
-
-local function GetClockSetting(cvar)
-	return GetCVarBool(cvar);
-end;
-
-core.config = setmetatable({}, {
-	__index = function(_, key)
-		return ChitChatGlobalStorage[key];
-	end,
-	__newindex = function(_, key, value)
-		ChitChatGlobalStorage[key] = value;
-	end,
-});
 
 core.Settings = {
 	{
@@ -61,7 +42,7 @@ core.Settings = {
 					reload = false,
 					dependsOn = "historyEnabled",
 					enabledWhen = function()
-						return core.config.historyEnabled;
+						return core.GetConfig(nil, "historyEnabled");
 					end,
 					title = "Saved message count",
 					description = "Maximum number of messages saved per chat window.",
@@ -87,7 +68,7 @@ core.Settings = {
 					reload = false,
 					dependsOn = "chitChatShowTimestamps",
 					enabledWhen = function()
-						return core.config.chitChatShowTimestamps;
+						return core.GetConfig(nil, "chitChatShowTimestamps");
 					end,
 					title = "Timestamp gap",
 					description = "Add a space between the timestamp and the message.",
@@ -98,30 +79,30 @@ core.Settings = {
 					reload = false,
 					dependsOn = "chitChatShowTimestamps",
 					enabledWhen = function()
-						return core.config.chitChatShowTimestamps;
+						return core.GetConfig(nil, "chitChatShowTimestamps");
 					end,
 					title = "24 Hour mode",
 					description = "Enables 24 Hour mode",
-					default = GetClockSetting("timeMgrUseMilitaryTime"),
+					default = GetCVarBool("timeMgrUseMilitaryTime"),
 				},
 				{
 					name = "chitChatTimestampLocalTime",
 					reload = false,
 					dependsOn = "chitChatShowTimestamps",
 					enabledWhen = function()
-						return core.config.chitChatShowTimestamps;
+						return core.GetConfig(nil, "chitChatShowTimestamps");
 					end,
 					title = "Use Local Time",
 					description =
 					"Use the your local time instead of the server time.",
-					default = GetClockSetting("timeMgrUseLocalTime"),
+					default = GetCVarBool("timeMgrUseLocalTime"),
 				},
 				{
 					name = "chitChatTimestampColor",
 					reload = false,
 					dependsOn = "chitChatShowTimestamps",
 					enabledWhen = function()
-						return core.config.chitChatShowTimestamps;
+						return core.GetConfig(nil, "chitChatShowTimestamps");
 					end,
 					title = "Timestamp colour",
 					description = "Set the colour of the timestamp.",
@@ -287,7 +268,7 @@ core.Settings = {
 					name = "chatBoxAboveTabs",
 					dependsOn = { "chatBoxTop", "chatTabsAtBottom" },
 					enabledWhen = function()
-						return core.config.chatBoxTop and not core.config.chatTabsAtBottom;
+						return core.GetConfig(nil, "chatBoxTop") and not core.GetConfig(nil, "chatTabsAtBottom");
 					end,
 					title = "Input above tabs",
 					description = "When the input is placed on top, place it above the tabs.",
@@ -327,7 +308,7 @@ core.Settings = {
 					reload = false,
 					dependsOn = "alwaysShowChatTabs",
 					enabledWhen = function()
-						return not core.config.alwaysShowChatTabs;
+						return not core.GetConfig(nil, "alwaysShowChatTabs");
 					end,
 					title = "Base opacity",
 					description = "Opacity of the chat tabs when not hovered.",
@@ -399,7 +380,7 @@ core.Settings = {
 					reload = false,
 					dependsOn = "alwaysShowControls",
 					enabledWhen = function()
-						return not core.config.alwaysShowControls;
+						return not core.GetConfig(nil, "alwaysShowControls");
 					end,
 					title = "Opacity",
 					description = "Opacity of the controls when not hovered.",
@@ -407,6 +388,33 @@ core.Settings = {
 					min = 0,
 					max = 1,
 					step = 0.05,
+				},
+			},
+		},
+		{
+			name = "Scrollbar",
+			settings = {
+				{
+					name = "showScrollbar",
+					title = "Show",
+					description = "Show a white scrollbar for more gradual scrolling.",
+					default = false,
+				},
+				{
+					name = "scrollbarSide",
+					dependsOn = "showScrollbar",
+					enabledWhen = function()
+						return core.GetConfig(nil, "showScrollbar");
+					end,
+					title = "Side",
+					description = "Which side of the chat frame the scrollbar is on.",
+					default = 2,
+					min = 1,
+					max = 2,
+					options = {
+						{ value = "LEFT",  text = "Left" },
+						{ value = "RIGHT", text = "Right" },
+					},
 				},
 			},
 		},
@@ -476,7 +484,7 @@ core.Settings = {
 					key = "messageBackgroundGradientEdgeOpacity",
 					dependsOn = "messageBackgroundUseGradient",
 					enabledWhen = function()
-						return core.config.messageBackgroundUseGradient;
+						return core.GetConfig(nil, "messageBackgroundUseGradient");
 					end,
 					title = "Gradient edge opacity",
 					description = "The opacity of the outer edge of the gradient.",
@@ -490,7 +498,7 @@ core.Settings = {
 					key = "messageBackgroundGradientMainColourRatio",
 					dependsOn = "messageBackgroundUseGradient",
 					enabledWhen = function()
-						return core.config.messageBackgroundUseGradient;
+						return core.GetConfig(nil, "messageBackgroundUseGradient");
 					end,
 					title = "Gradient colour ratio",
 					description = "The amount of width taken up by the colour before the gradient starts.",
@@ -504,7 +512,7 @@ core.Settings = {
 					key = "messageBackgroundGradientOneSided",
 					dependsOn = "messageBackgroundUseGradient",
 					enabledWhen = function()
-						return core.config.messageBackgroundUseGradient;
+						return core.GetConfig(nil, "messageBackgroundUseGradient");
 					end,
 					title = "One-sided gradient",
 					description = "Makes the gradient go from one side, instead of being both directions.",
@@ -515,8 +523,8 @@ core.Settings = {
 					key = "messageBackgroundGradientMainColourSide",
 					dependsOn = { "messageBackgroundUseGradient", "messageBackgroundGradientOneSided" },
 					enabledWhen = function()
-						return core.config.messageBackgroundUseGradient and core.config
-							.messageBackgroundGradientOneSided;
+						return core.GetConfig(nil, "messageBackgroundUseGradient")
+							and core.GetConfig(nil, "messageBackgroundGradientOneSided");
 					end,
 					title = "Gradient direction",
 					description = "Makes gradient go left or right, depending on if one-sided gradient is selected.",
@@ -552,7 +560,7 @@ core.Settings = {
 					key = "chatTabBackgroundGradientEdgeOpacity",
 					dependsOn = "chatTabBackgroundUseGradient",
 					enabledWhen = function()
-						return core.config.chatTabBackgroundUseGradient;
+						return core.GetConfig(nil, "chatTabBackgroundUseGradient");
 					end,
 					title = "Gradient edge opacity",
 					description = "The opacity of the outer edge of the gradient.",
@@ -566,7 +574,7 @@ core.Settings = {
 					key = "chatTabBackgroundGradientMainColourRatio",
 					dependsOn = "chatTabBackgroundUseGradient",
 					enabledWhen = function()
-						return core.config.chatTabBackgroundUseGradient;
+						return core.GetConfig(nil, "chatTabBackgroundUseGradient");
 					end,
 					title = "Gradient colour ratio",
 					description = "The amount of width taken up by the colour before the gradient starts.",
@@ -580,7 +588,7 @@ core.Settings = {
 					key = "chatTabBackgroundGradientOneSided",
 					dependsOn = "chatTabBackgroundUseGradient",
 					enabledWhen = function()
-						return core.config.chatTabBackgroundUseGradient;
+						return core.GetConfig(nil, "chatTabBackgroundUseGradient");
 					end,
 					title = "One-sided gradient",
 					description = "Makes the gradient go from one side, instead of being both directions.",
@@ -591,8 +599,8 @@ core.Settings = {
 					key = "chatTabBackgroundGradientMainColourSide",
 					dependsOn = { "chatTabBackgroundUseGradient", "chatTabBackgroundGradientOneSided" },
 					enabledWhen = function()
-						return core.config.chatTabBackgroundUseGradient and core.config
-							.chatTabBackgroundGradientOneSided;
+						return core.GetConfig(nil, "chatTabBackgroundUseGradient")
+							and core.GetConfig(nil, "chatTabBackgroundGradientOneSided");
 					end,
 					title = "Gradient direction",
 					description = "Makes gradient go left or right, depending on if one-sided gradient is selected.",
@@ -628,7 +636,7 @@ core.Settings = {
 					key = "controlBackgroundGradientEdgeOpacity",
 					dependsOn = "controlBackgroundUseGradient",
 					enabledWhen = function()
-						return core.config.controlBackgroundUseGradient;
+						return core.GetConfig(nil, "controlBackgroundUseGradient");
 					end,
 					title = "Gradient edge opacity",
 					description = "The opacity of the outer edge of the gradient.",
@@ -642,7 +650,7 @@ core.Settings = {
 					key = "controlBackgroundGradientMainColourRatio",
 					dependsOn = "controlBackgroundUseGradient",
 					enabledWhen = function()
-						return core.config.controlBackgroundUseGradient;
+						return core.GetConfig(nil, "controlBackgroundUseGradient");
 					end,
 					title = "Gradient colour ratio",
 					description = "The amount of width taken up by the colour before the gradient starts.",
@@ -656,7 +664,7 @@ core.Settings = {
 					key = "controlBackgroundGradientOneSided",
 					dependsOn = "controlBackgroundUseGradient",
 					enabledWhen = function()
-						return core.config.controlBackgroundUseGradient;
+						return core.GetConfig(nil, "controlBackgroundUseGradient");
 					end,
 					title = "One-sided gradient",
 					description = "Makes the gradient go from one side, instead of being both directions.",
@@ -667,8 +675,8 @@ core.Settings = {
 					key = "controlBackgroundGradientMainColourSide",
 					dependsOn = { "controlBackgroundUseGradient", "controlBackgroundGradientOneSided" },
 					enabledWhen = function()
-						return core.config.controlBackgroundUseGradient and core.config
-							.controlBackgroundGradientOneSided;
+						return core.GetConfig(nil, "controlBackgroundUseGradient")
+							and core.GetConfig(nil, "controlBackgroundGradientOneSided");
 					end,
 					title = "Gradient direction",
 					description = "Makes gradient go left or right, depending on if one-sided gradient is selected.",
@@ -704,7 +712,7 @@ core.Settings = {
 					key = "chatInputBackgroundGradientEdgeOpacity",
 					dependsOn = "chatInputBackgroundUseGradient",
 					enabledWhen = function()
-						return core.config.chatInputBackgroundUseGradient;
+						return core.GetConfig(nil, "chatInputBackgroundUseGradient");
 					end,
 					title = "Gradient edge opacity",
 					description = "The opacity of the outer edge of the gradient.",
@@ -718,7 +726,7 @@ core.Settings = {
 					key = "chatInputBackgroundGradientMainColourRatio",
 					dependsOn = "chatInputBackgroundUseGradient",
 					enabledWhen = function()
-						return core.config.chatInputBackgroundUseGradient;
+						return core.GetConfig(nil, "chatInputBackgroundUseGradient");
 					end,
 					title = "Gradient colour ratio",
 					description = "The amount of width taken up by the colour before the gradient starts.",
@@ -732,7 +740,7 @@ core.Settings = {
 					key = "chatInputBackgroundGradientOneSided",
 					dependsOn = "chatInputBackgroundUseGradient",
 					enabledWhen = function()
-						return core.config.chatInputBackgroundUseGradient;
+						return core.GetConfig(nil, "chatInputBackgroundUseGradient");
 					end,
 					title = "One-sided gradient",
 					description = "Makes the gradient go from one side, instead of being both directions.",
@@ -743,8 +751,8 @@ core.Settings = {
 					key = "chatInputBackgroundGradientMainColourSide",
 					dependsOn = { "chatInputBackgroundUseGradient", "chatInputBackgroundGradientOneSided" },
 					enabledWhen = function()
-						return core.config.chatInputBackgroundUseGradient and
-							core.config.chatInputBackgroundGradientOneSided;
+						return core.GetConfig(nil, "chatInputBackgroundUseGradient")
+							and core.GetConfig(nil, "chatInputBackgroundGradientOneSided");
 					end,
 					title = "Gradient direction",
 					description = "Makes gradient go left or right, depending on if one-sided gradient is selected.",
@@ -780,7 +788,7 @@ core.Settings = {
 					key = "chatBackgroundGradientEdgeOpacity",
 					dependsOn = "chatBackgroundUseGradient",
 					enabledWhen = function()
-						return core.config.chatBackgroundUseGradient;
+						return core.GetConfig(nil, "chatBackgroundUseGradient");
 					end,
 					title = "Gradient edge opacity",
 					description = "The opacity of the outer edge of the gradient.",
@@ -794,7 +802,7 @@ core.Settings = {
 					key = "chatBackgroundGradientMainColourRatio",
 					dependsOn = "chatBackgroundUseGradient",
 					enabledWhen = function()
-						return core.config.chatBackgroundUseGradient;
+						return core.GetConfig(nil, "chatBackgroundUseGradient");
 					end,
 					title = "Gradient colour ratio",
 					description = "The amount of width taken up by the colour before the gradient starts.",
@@ -808,7 +816,7 @@ core.Settings = {
 					key = "chatBackgroundGradientOneSided",
 					dependsOn = "chatBackgroundUseGradient",
 					enabledWhen = function()
-						return core.config.chatBackgroundUseGradient;
+						return core.GetConfig(nil, "chatBackgroundUseGradient");
 					end,
 					title = "One-sided gradient",
 					description = "Makes the gradient go from one side, instead of being both directions.",
@@ -819,8 +827,8 @@ core.Settings = {
 					key = "chatBackgroundGradientMainColourSide",
 					dependsOn = { "chatBackgroundUseGradient", "chatBackgroundGradientOneSided" },
 					enabledWhen = function()
-						return core.config.chatBackgroundUseGradient and
-							core.config.chatBackgroundGradientOneSided;
+						return core.GetConfig(nil, "chatBackgroundUseGradient")
+							and core.GetConfig(nil, "chatBackgroundGradientOneSided");
 					end,
 					title = "Gradient direction",
 					description = "Makes gradient go left or right, depending on if one-sided gradient is selected.",

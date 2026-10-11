@@ -186,20 +186,22 @@ local gradientSettingKeys = {
 	},
 };
 
-function core.CreateGradientBackground(parent, anchor, settingsName, alpha, layer, subLevel, overrides)
+function core.CreateGradientBackground(parent, anchor, settingsName, alpha, layer, subLevel, overrides, chatFrame)
 	local settingKeys = gradientSettingKeys[settingsName];
 	if not settingKeys then
 		error("ChitChat: Unknown gradient settings group " .. tostring(settingsName) .. ".");
 	end;
 
-	local settings = core.config;
-	local colour = overrides and overrides.colour or settings[settingKeys.colour];
-	local mainColourRatio = Clamp(settings[settingKeys.gradientMainColourRatio] or 0, 0, 1);
-	local oneSidedGradient = settings[settingKeys.gradientOneSided];
-	local mainColourSide = settings[settingKeys.gradientMainColourSide] == "right" and "right" or "left";
+	local function GetSetting(group)
+		return core.GetConfig(chatFrame, settingKeys[group]);
+	end;
+	local colour = overrides and overrides.colour or GetSetting("colour");
+	local mainColourRatio = Clamp(GetSetting("gradientMainColourRatio") or 0, 0, 1);
+	local oneSidedGradient = GetSetting("gradientOneSided");
+	local mainColourSide = GetSetting("gradientMainColourSide") == "right" and "right" or "left";
 	local useGradient = overrides and overrides.useGradient;
 	if useGradient == nil then
-		useGradient = settings[settingKeys.useGradient];
+		useGradient = GetSetting("useGradient");
 	end;
 	local parts, regions = CreateBackgroundParts(
 		parent,
@@ -240,7 +242,7 @@ function core.CreateGradientBackground(parent, anchor, settingsName, alpha, laye
 		end;
 
 		local effectiveAlpha = opacity * (colour.a or 1);
-		local edgeAlpha = effectiveAlpha * (settings[settingKeys.gradientEdgeOpacity] or 0.5);
+		local edgeAlpha = effectiveAlpha * (GetSetting("gradientEdgeOpacity") or 0.5);
 		for _, part in ipairs(parts) do
 			local leftAlpha = effectiveAlpha;
 			local rightAlpha = effectiveAlpha;

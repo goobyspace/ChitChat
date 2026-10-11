@@ -1,19 +1,26 @@
 local _, core = ...;
 
-local config = core.config;
+local GetConfig = core.GetConfig;
 
-local function GetTabHeight()
-	local _, fontHeight = ChatFontNormal:GetFont();
-	return math.max(config.tabHeight, math.ceil(fontHeight or 12) + 6);
+local function GetTabChatFrame(tab)
+	return _G["ChatFrame" .. tab:GetID()];
 end;
 
-local function ApplyTabGradient(background)
+local function GetTabHeight(chatFrame)
+	local _, fontHeight = ChatFontNormal:GetFont();
+	return math.max(GetConfig(chatFrame, "tabHeight"), math.ceil(fontHeight or 12) + 6);
+end;
+
+local function ApplyTabGradient(background, chatFrame)
 	return core.CreateGradientBackground(
 		background,
 		background,
 		"chatTab",
 		1,
-		"ARTWORK"
+		"ARTWORK",
+		nil,
+		nil,
+		chatFrame
 	);
 end;
 
@@ -50,13 +57,14 @@ local function ApplyTabSkin(tab)
 		return;
 	end;
 
+	local chatFrame = GetTabChatFrame(tab);
 	core.HideDefaultTextures(tab);
-	tab:SetHeight(GetTabHeight());
+	tab:SetHeight(GetTabHeight(chatFrame));
 	if tab.glow then
 		tab.glow:Hide();
 	end;
-	local background = core.CreateControlBackground(tab, 0, "Background");
-	ApplyTabGradient(background);
+	local background = core.CreateControlBackground(tab, 0, "Background", chatFrame);
+	ApplyTabGradient(background, chatFrame);
 	background:SetShown(tab:IsVisible());
 	tab:HookScript("OnShow", function()
 		background:Show();
@@ -120,7 +128,7 @@ function core:UpdateChatTab(entry)
 		tabText:SetAlpha(1);
 	end;
 	-- blizz resets the height of tabs when they are re-docked or resized
-	local height = GetTabHeight();
+	local height = GetTabHeight(GetTabChatFrame(tab));
 	if tab:GetHeight() ~= height then
 		tab:SetHeight(height);
 	end;
@@ -128,6 +136,6 @@ function core:UpdateChatTab(entry)
 	if underline then
 		core.HideDefaultTextures(tab, underline);
 		local chatFrame = _G["ChatFrame" .. tab:GetID()];
-		underline:SetShown(chatFrame == SELECTED_CHAT_FRAME);
+		underline:SetShown(chatFrame and chatFrame:IsShown());
 	end;
 end;

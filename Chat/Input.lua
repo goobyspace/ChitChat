@@ -1,6 +1,6 @@
 local _, core = ...;
 
-local config = core.config;
+local GetConfig = core.GetConfig;
 
 local function HideEditBoxBorders(editBox, keepTextures)
 	keepTextures = keepTextures or editBox.ChitChatBackgroundTextures;
@@ -64,21 +64,22 @@ function core:PositionChatInput(editBox, chatFrame, tab)
 		return;
 	end;
 
-	local height = math.max(editBox:GetHeight(), config.controlSize);
+	local height = math.max(editBox:GetHeight(), GetConfig(chatFrame, "controlSize"));
 	editBox.ChitChatChatFrame = chatFrame;
 	editBox.ChitChatTab = tab;
+	local configFrame = chatFrame;
 	chatFrame = core.GetLayoutAnchor(chatFrame);
 	local points;
-	if config.chatBoxTop then
-		if config.chatTabsAtBottom then
+	if GetConfig(configFrame, "chatBoxTop") then
+		if GetConfig(configFrame, "chatTabsAtBottom") then
 			points = { { "BOTTOMLEFT", "TOPLEFT", 2 }, { "BOTTOMRIGHT", "TOPRIGHT", 2 } };
 		elseif tab then
 			local chatTop = chatFrame:GetTop();
-			local tabEdge = config.chatBoxAboveTabs and tab:GetTop() or tab:GetBottom();
+			local tabEdge = GetConfig(configFrame, "chatBoxAboveTabs") and tab:GetTop() or tab:GetBottom();
 			if not chatTop or not tabEdge then
 				error("ChitChat: Unable to determine ChatFrame1 tab bounds for chatBoxTop.");
 			end;
-			if config.chatBoxAboveTabs then
+			if GetConfig(configFrame, "chatBoxAboveTabs") then
 				local offset = tabEdge - chatTop + 2;
 				points = { { "BOTTOMLEFT", "TOPLEFT", offset }, { "BOTTOMRIGHT", "TOPRIGHT", offset } };
 			else
@@ -112,7 +113,9 @@ function core:InitializeChatInput(editBox)
 		"chatInput",
 		1,
 		"ARTWORK",
-		-1
+		-1,
+		nil,
+		editBox.ChitChatChatFrame or editBox.chatFrame
 	);
 	local backgroundTextures = background.regions;
 	editBox.ChitChatBackgroundTextures = backgroundTextures;
@@ -158,10 +161,11 @@ function core:InitializeChatInput(editBox)
 
 	local inputFadeDriver = CreateFrame("Frame");
 	inputFadeDriver:SetScript("OnUpdate", function(_, elapsed)
-		local isMouseOver = config.chatBoxMouseover
+		local chatFrame = editBox.ChitChatChatFrame or editBox.chatFrame;
+		local isMouseOver = GetConfig(chatFrame, "chatBoxMouseover")
 			and (hoverState.isMouseOver or editBox:IsMouseOver());
 		local targetAlpha = (hoverState.isFocused or isMouseOver) and 1 or 0;
-		local step = math.min(elapsed / config.fadeDuration, 1);
+		local step = math.min(elapsed / GetConfig(chatFrame, "fadeDuration"), 1);
 		inputAlpha = inputAlpha + (targetAlpha - inputAlpha) * step;
 		if math.abs(inputAlpha - targetAlpha) < 0.01 then
 			inputAlpha = targetAlpha;

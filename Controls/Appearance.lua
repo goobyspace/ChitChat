@@ -3,7 +3,6 @@
 
 local _, core = ...;
 
-local config = core.config;
 local unnamedBackgroundIndex = 0;
 
 function core.HideDefaultTextures(frame, keepTexture)
@@ -16,7 +15,7 @@ end;
 
 core.CONTROL_BACKGROUND_INSET = 2;
 
-function core.CreateControlBackground(frame, inset, nameSuffix)
+function core.CreateControlBackground(frame, inset, nameSuffix, chatFrame)
 	local backgroundParent = frame:GetParent() or UIParent;
 	local frameName = frame:GetName();
 	if not frameName then
@@ -32,7 +31,7 @@ function core.CreateControlBackground(frame, inset, nameSuffix)
 	background:SetFrameLevel(math.max(backgroundParent:GetFrameLevel(), frame:GetFrameLevel() - 1));
 	background:SetPoint("TOPLEFT", frame, "TOPLEFT", -inset, inset);
 	background:SetPoint("BOTTOMRIGHT", frame, "BOTTOMRIGHT", inset, -inset);
-	core.CreateGradientBackground(background, background, "control", 1, "BACKGROUND");
+	core.CreateGradientBackground(background, background, "control", 1, "BACKGROUND", nil, nil, chatFrame);
 	return background;
 end;
 
@@ -100,7 +99,7 @@ function core.AnimateControlButtonIcon(button, textures)
 	end);
 end;
 
-function core.ApplyControlButtonIcon(button, iconTexture)
+function core.ApplyControlButtonIcon(button, iconTexture, chatFrame)
 	if not button then
 		return;
 	end;
@@ -143,5 +142,5 @@ function core.ApplyControlButtonIcon(button, iconTexture)
 	end;
 	button.ChitChatIconTextures = iconTextures;
 	core.AnimateControlButtonIcon(button, iconTextures);
-	return core.CreateControlBackground(button, core.CONTROL_BACKGROUND_INSET, "Background");
+	return core.CreateControlBackground(button, core.CONTROL_BACKGROUND_INSET, "Background", chatFrame);
 end;

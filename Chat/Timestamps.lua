@@ -1,6 +1,6 @@
 local _, core = ...;
 
-local config = core.config;
+local GetConfig = core.GetConfig;
 local registered = false;
 local wrappedChatFrames = setmetatable({}, { __mode = "k" });
 local chatMessageMetadata = setmetatable({}, { __mode = "k" });
@@ -11,9 +11,9 @@ local function IsTimestamp(value)
 	return type(value) == "number" and value > 0;
 end;
 
-local function GetTimestampText(timestamp)
+local function GetTimestampText(timestamp, chatFrame)
 	timestamp = timestamp or time();
-	if not config.chitChatTimestampLocalTime then
+	if not GetConfig(chatFrame, "chitChatTimestampLocalTime") then
 		local serverHour, serverMinute = GetGameTime();
 		local localHour = tonumber(date("%H"));
 		local localMinute = tonumber(date("%M"));
@@ -26,8 +26,8 @@ local function GetTimestampText(timestamp)
 		timestamp = timestamp + minuteOffset * 60;
 	end;
 
-	local format = config.chitChatTimestamp24Hour and "%H:%M" or "%I:%M %p";
-	local color = config.chitChatTimestampColor;
+	local format = GetConfig(chatFrame, "chitChatTimestamp24Hour") and "%H:%M" or "%I:%M %p";
+	local color = GetConfig(chatFrame, "chitChatTimestampColor");
 	if type(color) ~= "table"
 		or type(color.r) ~= "number"
 		or type(color.g) ~= "number"
@@ -46,8 +46,8 @@ local function GetTimestampText(timestamp)
 	return "|cff" .. colorCode .. "[" .. date(format, timestamp) .. "]|r";
 end;
 
-function core:GetTimestampText(timestamp)
-	return GetTimestampText(timestamp);
+function core:GetTimestampText(timestamp, chatFrame)
+	return GetTimestampText(timestamp, chatFrame);
 end;
 
 local function SeedChatMessageMetadata(chatFrame)
@@ -95,11 +95,11 @@ local function WrapAddMessage(addMessage)
 		local rawMessage = message;
 		local recordableMessage = type(rawMessage) == "string"
 			and not (issecretvalue and issecretvalue(rawMessage));
-		if config.chitChatShowTimestamps and type(message) == "string"
+		if GetConfig(chatFrame, "chitChatShowTimestamps") and type(message) == "string"
 			and not (issecretvalue and issecretvalue(message))
 			and IsTimestamp(timestamp) then
-			local gap = config.chitChatTimestampGap and " " or "";
-			message = GetTimestampText(timestamp) .. gap .. message;
+			local gap = GetConfig(chatFrame, "chitChatTimestampGap") and " " or "";
+			message = GetTimestampText(timestamp, chatFrame) .. gap .. message;
 		end;
 		SeedChatMessageMetadata(chatFrame);
 		local result = addMessage(chatFrame, message, ...);

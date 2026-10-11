@@ -3,7 +3,7 @@
 
 local _, core = ...;
 
-local config = core.config;
+local GetConfig = core.GetConfig;
 
 local controlPositions = {
 	TOPLEFT = { vertical = "TOP", horizontal = "LEFT", right = false, bottom = false },
@@ -12,23 +12,25 @@ local controlPositions = {
 	BOTTOMRIGHT = { vertical = "BOTTOM", horizontal = "RIGHT", right = true, bottom = true },
 };
 
-function core.GetControlPosition()
-	local position = controlPositions[config.controlsPositionStringifiedValue];
+function core.GetControlPosition(chatFrame)
+	local position = controlPositions[GetConfig(chatFrame, "controlsPositionStringifiedValue")];
 	if not position then
 		error("ChitChat: Invalid controls.position; expected TOPLEFT, TOPRIGHT, BOTTOMLEFT, or BOTTOMRIGHT.");
 	end;
 	return position;
 end;
 
-function core.GetControlStep()
-	return config.controlSize + config.controlSpacing + 2 * core.CONTROL_BACKGROUND_INSET;
+function core.GetControlStep(chatFrame)
+	return GetConfig(chatFrame, "controlSize") + GetConfig(chatFrame, "controlSpacing")
+		+ 2 * core.CONTROL_BACKGROUND_INSET;
 end;
 
-function core.PositionControlButton(button, row, index, position)
+function core.PositionControlButton(button, row, index, position, chatFrame)
 	if not button then
 		return;
 	end;
 
+	local controlSize = GetConfig(chatFrame, "controlSize");
 	local frameStrata = row:GetFrameStrata();
 	local frameLevel = row:GetFrameLevel() + 1;
 	if button:GetFrameStrata() ~= frameStrata then
@@ -37,14 +39,14 @@ function core.PositionControlButton(button, row, index, position)
 	if button:GetFrameLevel() ~= frameLevel then
 		button:SetFrameLevel(frameLevel);
 	end;
-	if button:GetWidth() ~= config.controlSize or button:GetHeight() ~= config.controlSize then
-		button:SetSize(config.controlSize, config.controlSize);
+	if button:GetWidth() ~= controlSize or button:GetHeight() ~= controlSize then
+		button:SetSize(controlSize, controlSize);
 	end;
-	local offset = (index - 1) * core.GetControlStep();
+	local offset = (index - 1) * core.GetControlStep(chatFrame);
 	local point;
 	local x;
 	local y;
-	if config.controlsVertical then
+	if GetConfig(chatFrame, "controlsVertical") then
 		point = position.vertical .. position.horizontal;
 		x = 0;
 		y = position.bottom and offset or -offset;
@@ -68,7 +70,7 @@ function core.PositionControlButton(button, row, index, position)
 		button:SetPoint(point, row, point, x, y);
 	end;
 	if not button.ChitChatBackground then
-		button.ChitChatBackground = core.ApplyControlButtonIcon(button, button.ChitChatIcon);
+		button.ChitChatBackground = core.ApplyControlButtonIcon(button, button.ChitChatIcon, chatFrame);
 	end;
 	local background = button.ChitChatBackground;
 	if background:GetFrameStrata() ~= frameStrata then
@@ -83,12 +85,14 @@ function core.PositionControlButton(button, row, index, position)
 	end;
 end;
 
-local function GetControlRowSize(buttonCount)
-	local spacing = math.max(buttonCount - 1, 0) * (core.GetControlStep() - config.controlSize);
-	local width = config.controlsVertical and config.controlSize
-		or buttonCount * config.controlSize + spacing;
-	local height = config.controlsVertical and buttonCount * config.controlSize + spacing
-		or config.controlSize;
+local function GetControlRowSize(buttonCount, chatFrame)
+	local controlSize = GetConfig(chatFrame, "controlSize");
+	local vertical = GetConfig(chatFrame, "controlsVertical");
+	local spacing = math.max(buttonCount - 1, 0) * (core.GetControlStep(chatFrame) - controlSize);
+	local width = vertical and controlSize
+		or buttonCount * controlSize + spacing;
+	local height = vertical and buttonCount * controlSize + spacing
+		or controlSize;
 	return width, height;
 end;
 
@@ -104,30 +108,32 @@ local function GetHighestVisibleTabTop(selectedTab)
 	return tabTop;
 end;
 
-local function GetControlRowAnchors(chatFrame, position, selectedTab, isCombatLog)
+local function GetControlRowAnchors(chatFrame, position, selectedTab, isCombatLog, configFrame)
 	local rowPoint = position.vertical .. position.horizontal;
 	local framePoint = rowPoint;
 	local relativeTo = chatFrame;
 	local offsetX = 0;
 	local offsetY = 0;
-	if config.controlsVertical and config.controlsOutside then
+	local vertical = GetConfig(configFrame, "controlsVertical");
+	local outside = GetConfig(configFrame, "controlsOutside");
+	if vertical and outside then
 		rowPoint = position.vertical .. (position.right and "LEFT" or "RIGHT");
 		framePoint = position.vertical .. (position.right and "RIGHT" or "LEFT");
 		offsetX = position.right and 2 or -2;
-	elseif not config.controlsVertical and isCombatLog
-		and not config.controlsOutside
+	elseif not vertical and isCombatLog
+		and not outside
 		and not position.bottom
 		and selectedTab then
 		rowPoint = "TOP" .. position.horizontal;
 		framePoint = "TOP" .. position.horizontal;
-		offsetY = -(config.controlSize + 2);
-	elseif not config.controlsVertical and config.controlsOutside and not position.bottom then
+		offsetY = -(GetConfig(configFrame, "controlSize") + 2);
+	elseif not vertical and outside and not position.bottom then
 		rowPoint = "BOTTOM" .. position.horizontal;
 		framePoint = "TOP" .. position.horizontal;
 		local chatTop = chatFrame:GetTop();
 		local tabTop = GetHighestVisibleTabTop(selectedTab);
 		offsetY = chatTop and tabTop and math.max(2, tabTop - chatTop + 2) or 2;
-	elseif not config.controlsVertical and config.controlsOutside then
+	elseif not vertical and outside then
 		rowPoint = (position.bottom and "TOP" or "BOTTOM") .. position.horizontal;
 		offsetY = position.bottom and -2 or 2;
 	end;
@@ -136,11 +142,13 @@ local function GetControlRowAnchors(chatFrame, position, selectedTab, isCombatLo
 end;
 
 function core.PositionControlRow(row, chatFrame, buttonCount, position, selectedTab, isCombatLog, areaTopOffset)
+	local configFrame = chatFrame;
 	chatFrame = core.GetLayoutAnchor(chatFrame);
-	local width, height = GetControlRowSize(buttonCount);
+	local width, height = GetControlRowSize(buttonCount, configFrame);
 	local rowPoint, relativeTo, framePoint, offsetX, offsetY =
-		GetControlRowAnchors(chatFrame, position, selectedTab, isCombatLog);
-	if config.controlsVertical and config.controlsOutside and not position.bottom then
+		GetControlRowAnchors(chatFrame, position, selectedTab, isCombatLog, configFrame);
+	if GetConfig(configFrame, "controlsVertical") and GetConfig(configFrame, "controlsOutside")
+		and not position.bottom then
 		offsetY = areaTopOffset and math.max(areaTopOffset, 0) or 0;
 	end;
 	row:SetSize(width, height);

@@ -1,10 +1,23 @@
 local _, core = ...;
 
-local config = core.config;
+local GetConfig = core.GetConfig;
 local historyStorageKey = "chatHistoryByCharacter";
 local historySavePending = false;
 local historySaveScheduled = false;
 local historySavingInitialized = false;
+
+local function IsHistoryEnabled(chatFrame)
+	return GetConfig(chatFrame, "historyEnabled");
+end;
+
+local function IsHistoryEnabledForAnyFrame()
+	for frameIndex = 1, core.GetChatWindowCount() do
+		if IsHistoryEnabled(_G["ChatFrame" .. frameIndex]) then
+			return true;
+		end;
+	end;
+	return false;
+end;
 
 local function GetCharacterKey()
 	local name, realm = UnitFullName("player");
@@ -47,8 +60,8 @@ local function IsNormalChatFrame(chatFrame)
 	return chatFrame ~= _G["ChatFrame2"];
 end;
 
-local function GetSavedLineCount()
-	local lineCount = config.historyLines;
+local function GetSavedLineCount(chatFrame)
+	local lineCount = GetConfig(chatFrame, "historyLines");
 	if type(lineCount) ~= "number" or lineCount < 0 or lineCount % 1 ~= 0 then
 		error("ChitChat: config.historyLines must be a non-negative integer.");
 	end;
@@ -76,11 +89,11 @@ local function GetVisibleLines(chatFrame, lineLimit)
 end;
 
 local function GetChatHistories()
-	local lineLimit = GetSavedLineCount();
 	local histories = {};
 	for frameIndex = 1, core.GetChatWindowCount() do
 		local chatFrame = _G["ChatFrame" .. frameIndex];
-		if IsNormalChatFrame(chatFrame) then
+		if IsNormalChatFrame(chatFrame) and IsHistoryEnabled(chatFrame) then
+			local lineLimit = GetSavedLineCount(chatFrame);
 			local lines = {};
 			if chatFrame.GetNumMessages and chatFrame.GetMessageInfo then
 				local messageCount = chatFrame:GetNumMessages();
@@ -118,7 +131,7 @@ local function GetChatHistories()
 end;
 
 local function ScheduleChatHistorySave()
-	if not config.historyEnabled then
+	if not IsHistoryEnabledForAnyFrame() then
 		return;
 	end;
 
@@ -136,7 +149,7 @@ local function ScheduleChatHistorySave()
 	-- without it sometimes you'll race the blizz chat and win and there'll be no new message yet
 	C_Timer.After(0, function()
 		historySaveScheduled = false;
-		if not config.historyEnabled then
+		if not IsHistoryEnabledForAnyFrame() then
 			return;
 		end;
 		if InCombatLockdown() then
@@ -183,7 +196,7 @@ function core:InitializeChatHistorySaving()
 	local combatEvents = CreateFrame("Frame");
 	combatEvents:RegisterEvent("PLAYER_REGEN_ENABLED");
 	combatEvents:SetScript("OnEvent", function()
-		if historySavePending and config.historyEnabled then
+		if historySavePending and IsHistoryEnabledForAnyFrame() then
 			core:SaveChatHistory();
 			historySavePending = false;
 		end;
@@ -287,13 +300,14 @@ function core.CreateHistoryControlButton(parent)
 	end);
 	button.ChitChatBackground = core.ApplyControlButtonIcon(
 		button,
-		"Interface\\AddOns\\ChitChat\\Assets\\copypaste.png"
+		"Interface\\AddOns\\ChitChat\\Assets\\copypaste.png",
+		_G["ChatFrame1"]
 	);
 	return button;
 end;
 
 function core:SaveChatHistory()
-	if not config.historyEnabled then
+	if not IsHistoryEnabledForAnyFrame() then
 		return;
 	end;
 
@@ -306,7 +320,7 @@ function core:SaveChatHistory()
 end;
 
 function core:RestoreChatHistory()
-	if not config.historyEnabled then
+	if not IsHistoryEnabledForAnyFrame() then
 		return;
 	end;
 
@@ -325,7 +339,7 @@ function core:RestoreChatHistory()
 	for frameIndex = 1, core.GetChatWindowCount() do
 		local chatFrame = _G["ChatFrame" .. frameIndex];
 		local lines = histories[frameIndex];
-		if IsNormalChatFrame(chatFrame) and type(lines) == "table" and #lines > 0 then
+		if IsNormalChatFrame(chatFrame) and IsHistoryEnabled(chatFrame) and type(lines) == "table" and #lines > 0 then
 			chatFrame:Clear();
 			core:ResetChatMessageMetadata(chatFrame);
 			for _, line in ipairs(lines) do
