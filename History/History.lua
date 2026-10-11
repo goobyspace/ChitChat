@@ -2,6 +2,9 @@ local _, core = ...;
 
 local config = core.config;
 local historyStorageKey = "chatHistory";
+local historySavePending = false;
+local historySaveScheduled = false;
+local historySavingInitialized = false;
 
 local function IsNormalChatFrame(chatFrame)
 	if not chatFrame then
@@ -58,14 +61,16 @@ local function GetChatHistories()
 					local text, r, g, b, chatTypeID, messageAccessID, lineID =
 						chatFrame:GetMessageInfo(messageIndex);
 					if type(text) == "string" then
+						local timestamp, originalText = core:GetChatMessageTimestamp(chatFrame, messageIndex);
 						lines[#lines + 1] = {
-							text = text,
+							text = originalText or text,
 							r = r,
 							g = g,
 							b = b,
 							chatTypeID = chatTypeID,
 							messageAccessID = messageAccessID,
 							lineID = lineID,
+							timestamp = timestamp,
 						};
 					end;
 				end;
@@ -81,6 +86,77 @@ local function GetChatHistories()
 	end;
 
 	return histories;
+end;
+
+local function ScheduleChatHistorySave()
+	if not config.historyEnabled then
+		return;
+	end;
+
+	if InCombatLockdown() then
+		historySavePending = true;
+		return;
+	end;
+	if historySaveScheduled then
+		return;
+	end;
+
+	historySaveScheduled = true;
+	C_Timer.After(0, function()
+		historySaveScheduled = false;
+		if not config.historyEnabled then
+			return;
+		end;
+		if InCombatLockdown() then
+			historySavePending = true;
+			return;
+		end;
+
+		core:SaveChatHistory();
+		historySavePending = false;
+	end);
+end;
+
+function core:InitializeChatHistorySaving()
+	if historySavingInitialized then
+		return;
+	end;
+
+	historySavingInitialized = true;
+
+	-- The save is deferred a frame, so Blizzard's chat frames have already added the message.
+	local messageEvents = CreateFrame("Frame");
+	local registered = {};
+	local function RegisterMessageEvent(event)
+		if not registered[event] then
+			registered[event] = true;
+			pcall(messageEvents.RegisterEvent, messageEvents, event);
+		end;
+	end;
+	for _, group in pairs(ChatTypeGroup or {}) do
+		for _, event in ipairs(group) do
+			RegisterMessageEvent(event);
+		end;
+	end;
+	for _, event in ipairs({ "CHAT_MSG_SAY", "CHAT_MSG_YELL", "CHAT_MSG_EMOTE", "CHAT_MSG_TEXT_EMOTE",
+		"CHAT_MSG_WHISPER", "CHAT_MSG_WHISPER_INFORM", "CHAT_MSG_PARTY", "CHAT_MSG_PARTY_LEADER",
+		"CHAT_MSG_RAID", "CHAT_MSG_RAID_LEADER", "CHAT_MSG_RAID_WARNING", "CHAT_MSG_GUILD",
+		"CHAT_MSG_OFFICER", "CHAT_MSG_CHANNEL", "CHAT_MSG_SYSTEM", "CHAT_MSG_LOOT",
+		"CHAT_MSG_INSTANCE_CHAT", "CHAT_MSG_INSTANCE_CHAT_LEADER" }) do
+		RegisterMessageEvent(event);
+	end;
+	messageEvents:SetScript("OnEvent", function()
+		ScheduleChatHistorySave();
+	end);
+
+	local combatEvents = CreateFrame("Frame");
+	combatEvents:RegisterEvent("PLAYER_REGEN_ENABLED");
+	combatEvents:SetScript("OnEvent", function()
+		if historySavePending and config.historyEnabled then
+			core:SaveChatHistory();
+			historySavePending = false;
+		end;
+	end);
 end;
 
 function core:GetChatHistoryText(maxLines)
@@ -158,6 +234,8 @@ function core:GetChatHistoryText(maxLines)
 	return table.concat(output, "\n");
 end;
 
+core.HISTORY_BUTTON_TOOLTIP = "Copy chat history";
+
 function core.CreateHistoryControlButton(parent)
 	local button = CreateFrame("Button", "ChitChatCopyHistoryButton", parent);
 	button:SetScript("OnClick", function()
@@ -170,13 +248,16 @@ function core.CreateHistoryControlButton(parent)
 	end);
 	button:SetScript("OnEnter", function(hoveredButton)
 		GameTooltip:SetOwner(hoveredButton, "ANCHOR_RIGHT");
-		GameTooltip:SetText(InCombatLockdown() and "Combat lockdown" or "Copy chat history");
+		GameTooltip:SetText(InCombatLockdown() and "Combat lockdown" or core.HISTORY_BUTTON_TOOLTIP, 1, 1, 1);
 		GameTooltip:Show();
 	end);
 	button:SetScript("OnLeave", function()
 		GameTooltip:Hide();
 	end);
-	button.ChitChatBackground = core.ApplyControlButtonIcon(button, config.controlIcon);
+	button.ChitChatBackground = core.ApplyControlButtonIcon(
+		button,
+		"Interface\\AddOns\\ChitChat\\Assets\\copypaste.png"
+	);
 	return button;
 end;
 
@@ -203,7 +284,9 @@ function core:RestoreChatHistory()
 		local lines = histories[frameIndex];
 		if IsNormalChatFrame(chatFrame) and type(lines) == "table" and #lines > 0 then
 			chatFrame:Clear();
+			core:ResetChatMessageMetadata(chatFrame);
 			for _, line in ipairs(lines) do
+				core:SetNextChatMessageTimestamp(chatFrame, line.timestamp);
 				chatFrame:AddMessage(
 					line.text,
 					line.r,

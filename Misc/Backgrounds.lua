@@ -50,87 +50,47 @@ local function GetOneSidedGradientAlpha(x, width, alpha, edgeAlpha, mainColourRa
 	return alpha - (alpha - edgeAlpha) * ((x - mainEnd) / (width - mainEnd));
 end;
 
-local function CreateMaskIfNeeded(parent, texture, corner, layer)
-	if not corner then
-		return nil;
-	end;
-
-	local mask = parent:CreateMaskTexture(nil, layer);
-	mask:SetTexture("Interface\\AddOns\\ChitChat\\Assets\\CornerMask.tga");
-	mask:SetAllPoints(texture);
-	if corner == "topRight" then
-		mask:SetTexCoord(1, 0, 0, 1);
-	elseif corner == "bottomLeft" then
-		mask:SetTexCoord(0, 1, 1, 0);
-	elseif corner == "bottomRight" then
-		mask:SetTexCoord(1, 0, 1, 0);
-	end;
-	texture:AddMaskTexture(mask);
-	return mask;
-end;
-
-local function CreatePart(parent, colour, layer, subLevel, name, corner, left, right)
+local function CreatePart(parent, layer, subLevel, name)
+	subLevel = math.max(-8, math.min(7, subLevel or 0));
 	local texture = parent:CreateTexture(nil, layer, nil, subLevel);
-	texture:SetColorTexture(colour.r, colour.g, colour.b, 1);
+	texture:SetColorTexture(1, 1, 1, 1);
 	local part = {
 		name = name,
 		texture = texture,
-		left = left,
-		right = right,
-		mask = CreateMaskIfNeeded(parent, texture, corner, layer),
 	};
 	return part;
 end;
 
-local function CreateBackgroundParts(parent, colour, radius, oneSidedGradient, mainColourRatio, layer, subLevel)
+local function CreateBackgroundParts(parent, oneSidedGradient, mainColourRatio, layer, subLevel)
 	local parts = {};
 	local regions = {};
-	local function AddPart(name, corner, left, right)
-		local part = CreatePart(parent, colour, layer, subLevel, name, corner, left, right);
+	local function AddPart(name)
+		local part = CreatePart(parent, layer, subLevel, name);
 		parts[#parts + 1] = part;
 		regions[part.texture] = true;
 		return part;
 	end;
 
-	if radius > 0 then
-		AddPart("topLeft", "topLeft", 0, radius);
-		AddPart("top", nil, radius, -radius);
-		AddPart("topRight", "topRight", -radius, 0);
-		AddPart("left", nil, 0, radius);
-		AddPart("center", nil, radius, -radius);
-		AddPart("right", nil, -radius, 0);
-		AddPart("bottomLeft", "bottomLeft", 0, radius);
-		AddPart("bottom", nil, radius, -radius);
-		AddPart("bottomRight", "bottomRight", -radius, 0);
-	elseif oneSidedGradient then
+	if oneSidedGradient then
 		if mainColourRatio > 0 then
-			AddPart("gradientMain", nil, 0, 0);
+			AddPart("gradientMain");
 		end;
 		if mainColourRatio < 1 then
-			AddPart("gradientFade", nil, 0, 0);
+			AddPart("gradientFade");
 		end;
 	elseif mainColourRatio > 0 then
-		AddPart("gradientLeft", nil, 0, 0);
-		AddPart("gradientCenter", nil, 0, 0);
-		AddPart("gradientRight", nil, 0, 0);
+		AddPart("gradientLeft");
+		AddPart("gradientCenter");
+		AddPart("gradientRight");
 	else
-		AddPart("left", nil, 0, 0);
-		AddPart("right", nil, 0, 0);
+		AddPart("left");
+		AddPart("right");
 	end;
 
 	return parts, regions;
 end;
 
-local function GetRoundedPartBounds(part, width)
-	local startX = part.left < 0 and width + part.left or part.left;
-	local endX = part.right < 0 and width + part.right or part.right;
-	if part.right == 0 and part.left < 0 then
-		endX = width;
-	end;
-	return startX, endX;
-end;
-
-local function CreatePartPositioners(anchor, rounded, mainColourRatio, mainColourSide)
+local function CreatePartPositioners(anchor, mainColourRatio, mainColourSide)
 	local function GetGradientHalfWidth(width)
 		return width * (1 - mainColourRatio) / 2;
 	end;
@@ -170,95 +130,94 @@ local function CreatePartPositioners(anchor, rounded, mainColourRatio, mainColou
 			part.texture:SetWidth(gradientWidth);
 			return width - gradientWidth, width;
 		end,
-		topLeft = function(part, width, _, cornerRadius)
-			part.texture:SetPoint("TOPLEFT", anchor, "TOPLEFT");
-			part.texture:SetSize(cornerRadius, cornerRadius);
-			return GetRoundedPartBounds(part, width);
-		end,
-		top = function(part, width, _, cornerRadius)
-			part.texture:SetPoint("TOPLEFT", anchor, "TOPLEFT", cornerRadius, 0);
-			part.texture:SetPoint("TOPRIGHT", anchor, "TOPRIGHT", -cornerRadius, 0);
-			part.texture:SetHeight(cornerRadius);
-			return GetRoundedPartBounds(part, width);
-		end,
-		topRight = function(part, width, _, cornerRadius)
-			part.texture:SetPoint("TOPRIGHT", anchor, "TOPRIGHT");
-			part.texture:SetSize(cornerRadius, cornerRadius);
-			return GetRoundedPartBounds(part, width);
-		end,
-		left = function(part, width, _, cornerRadius)
-			if rounded then
-				part.texture:SetPoint("TOPLEFT", anchor, "TOPLEFT", 0, -cornerRadius);
-				part.texture:SetPoint("BOTTOMLEFT", anchor, "BOTTOMLEFT", 0, cornerRadius);
-				part.texture:SetWidth(cornerRadius);
-				return GetRoundedPartBounds(part, width);
-			end;
+		left = function(part, width)
 			part.texture:SetPoint("TOPLEFT", anchor, "TOPLEFT");
 			part.texture:SetPoint("BOTTOMRIGHT", anchor, "BOTTOM");
 			return 0, width / 2;
 		end,
-		center = function(part, width, _, cornerRadius)
-			part.texture:SetPoint("TOPLEFT", anchor, "TOPLEFT", cornerRadius, -cornerRadius);
-			part.texture:SetPoint("BOTTOMRIGHT", anchor, "BOTTOMRIGHT", -cornerRadius, cornerRadius);
-			return GetRoundedPartBounds(part, width);
-		end,
-		right = function(part, width, _, cornerRadius)
-			if rounded then
-				part.texture:SetPoint("TOPRIGHT", anchor, "TOPRIGHT", 0, -cornerRadius);
-				part.texture:SetPoint("BOTTOMRIGHT", anchor, "BOTTOMRIGHT", 0, cornerRadius);
-				part.texture:SetWidth(cornerRadius);
-				return GetRoundedPartBounds(part, width);
-			end;
+		right = function(part, width)
 			part.texture:SetPoint("TOPLEFT", anchor, "TOP");
 			part.texture:SetPoint("BOTTOMRIGHT", anchor, "BOTTOMRIGHT");
 			return width / 2, width;
 		end,
-		bottomLeft = function(part, width, _, cornerRadius)
-			part.texture:SetPoint("BOTTOMLEFT", anchor, "BOTTOMLEFT");
-			part.texture:SetSize(cornerRadius, cornerRadius);
-			return GetRoundedPartBounds(part, width);
-		end,
-		bottom = function(part, width, _, cornerRadius)
-			part.texture:SetPoint("BOTTOMLEFT", anchor, "BOTTOMLEFT", cornerRadius, 0);
-			part.texture:SetPoint("BOTTOMRIGHT", anchor, "BOTTOMRIGHT", -cornerRadius, 0);
-			part.texture:SetHeight(cornerRadius);
-			return GetRoundedPartBounds(part, width);
-		end,
-		bottomRight = function(part, width, _, cornerRadius)
-			part.texture:SetPoint("BOTTOMRIGHT", anchor, "BOTTOMRIGHT");
-			part.texture:SetSize(cornerRadius, cornerRadius);
-			return GetRoundedPartBounds(part, width);
-		end,
 	};
 end;
 
-function core.CreateGradientBackground(parent, anchor, settings, alpha, layer, subLevel)
-	local colour = settings.colour;
-	local radius = math.max(settings.roundedCorners, 0);
-	local mainColourRatio = Clamp(settings.gradientMainColourRatio or 0, 0, 1);
-	local oneSidedGradient = settings.gradientOneSided;
-	local mainColourSide = settings.gradientMainColourSide == "right" and "right" or "left";
-	local rounded = radius > 0;
+local gradientSettingKeys = {
+	chat = {
+		colour = "chatBackgroundColour",
+		gradientMainColourRatio = "chatBackgroundGradientMainColourRatio",
+		gradientOneSided = "chatBackgroundGradientOneSided",
+		gradientMainColourSide = "chatBackgroundGradientMainColourSideStringifiedValue",
+		gradientEdgeOpacity = "chatBackgroundGradientEdgeOpacity",
+		useGradient = "chatBackgroundUseGradient",
+	},
+	message = {
+		colour = "messageBackgroundColour",
+		gradientMainColourRatio = "messageBackgroundGradientMainColourRatio",
+		gradientOneSided = "messageBackgroundGradientOneSided",
+		gradientMainColourSide = "messageBackgroundGradientMainColourSideStringifiedValue",
+		gradientEdgeOpacity = "messageBackgroundGradientEdgeOpacity",
+		useGradient = "messageBackgroundUseGradient",
+	},
+	chatTab = {
+		colour = "chatTabBackgroundColour",
+		gradientMainColourRatio = "chatTabBackgroundGradientMainColourRatio",
+		gradientOneSided = "chatTabBackgroundGradientOneSided",
+		gradientMainColourSide = "chatTabBackgroundGradientMainColourSideStringifiedValue",
+		gradientEdgeOpacity = "chatTabBackgroundGradientEdgeOpacity",
+		useGradient = "chatTabBackgroundUseGradient",
+	},
+	control = {
+		colour = "controlBackgroundColour",
+		gradientMainColourRatio = "controlBackgroundGradientMainColourRatio",
+		gradientOneSided = "controlBackgroundGradientOneSided",
+		gradientMainColourSide = "controlBackgroundGradientMainColourSideStringifiedValue",
+		gradientEdgeOpacity = "controlBackgroundGradientEdgeOpacity",
+		useGradient = "controlBackgroundUseGradient",
+	},
+	chatInput = {
+		colour = "chatInputBackgroundColour",
+		gradientMainColourRatio = "chatInputBackgroundGradientMainColourRatio",
+		gradientOneSided = "chatInputBackgroundGradientOneSided",
+		gradientMainColourSide = "chatInputBackgroundGradientMainColourSideStringifiedValue",
+		gradientEdgeOpacity = "chatInputBackgroundGradientEdgeOpacity",
+		useGradient = "chatInputBackgroundUseGradient",
+	},
+};
 
+function core.CreateGradientBackground(parent, anchor, settingsName, alpha, layer, subLevel, overrides)
+	local settingKeys = gradientSettingKeys[settingsName];
+	if not settingKeys then
+		error("ChitChat: Unknown gradient settings group " .. tostring(settingsName) .. ".");
+	end;
+
+	local settings = core.config;
+	local colour = overrides and overrides.colour or settings[settingKeys.colour];
+	local mainColourRatio = Clamp(settings[settingKeys.gradientMainColourRatio] or 0, 0, 1);
+	local oneSidedGradient = settings[settingKeys.gradientOneSided];
+	local mainColourSide = settings[settingKeys.gradientMainColourSide] == "right" and "right" or "left";
+	local useGradient = overrides and overrides.useGradient;
+	if useGradient == nil then
+		useGradient = settings[settingKeys.useGradient];
+	end;
 	local parts, regions = CreateBackgroundParts(
 		parent,
-		colour,
-		radius,
 		oneSidedGradient,
 		mainColourRatio,
 		layer,
 		subLevel
 	);
-	local partPositioners = CreatePartPositioners(anchor, rounded, mainColourRatio, mainColourSide);
+	local partPositioners = CreatePartPositioners(anchor, mainColourRatio, mainColourSide);
 
-	local function PositionPart(part, width, height, cornerRadius)
+	local function PositionPart(part, width, height)
 		local texture = part.texture;
 		texture:ClearAllPoints();
 		local positioner = partPositioners[part.name];
 		if not positioner then
 			error("ChitChat: No background positioner for part " .. tostring(part.name) .. ".");
 		end;
-		part.startX, part.endX = positioner(part, width, height, cornerRadius);
+		part.startX, part.endX = positioner(part, width, height);
 	end;
 
 	local lastWidth, lastHeight, lastAlpha;
@@ -271,10 +230,9 @@ function core.CreateGradientBackground(parent, anchor, settings, alpha, layer, s
 		if not width or not height then
 			return;
 		end;
-		local cornerRadius = rounded and math.min(radius, width / 2, height / 2) or 0;
 		if lastWidth ~= width or lastHeight ~= height then
 			for _, part in ipairs(parts) do
-				PositionPart(part, width, height, cornerRadius);
+				PositionPart(part, width, height);
 			end;
 		end;
 		if lastAlpha == opacity and lastWidth == width and lastHeight == height then
@@ -282,11 +240,11 @@ function core.CreateGradientBackground(parent, anchor, settings, alpha, layer, s
 		end;
 
 		local effectiveAlpha = opacity * (colour.a or 1);
-		local edgeAlpha = effectiveAlpha * (settings.gradientEdgeOpacity or 0.5);
+		local edgeAlpha = effectiveAlpha * (settings[settingKeys.gradientEdgeOpacity] or 0.5);
 		for _, part in ipairs(parts) do
 			local leftAlpha = effectiveAlpha;
 			local rightAlpha = effectiveAlpha;
-			if settings.useGradient then
+			if useGradient then
 				if oneSidedGradient then
 					leftAlpha = GetOneSidedGradientAlpha(
 						part.startX,
@@ -314,7 +272,11 @@ function core.CreateGradientBackground(parent, anchor, settings, alpha, layer, s
 					CreateColor(colour.r, colour.g, colour.b, rightAlpha)
 				);
 			else
-				part.texture:SetColorTexture(colour.r, colour.g, colour.b, effectiveAlpha);
+				part.texture:SetGradient(
+					"HORIZONTAL",
+					CreateColor(colour.r, colour.g, colour.b, effectiveAlpha),
+					CreateColor(colour.r, colour.g, colour.b, effectiveAlpha)
+				);
 			end;
 		end;
 		lastWidth, lastHeight, lastAlpha = width, height, opacity;

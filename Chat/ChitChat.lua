@@ -23,23 +23,21 @@ local function GetMessageTimestamp(line)
 end;
 
 local function GetMessagePadding()
-	local messagePadding = config.messagePadding;
-	local horizontalPadding = messagePadding and messagePadding.horizontal;
-	local verticalPadding = messagePadding and messagePadding.vertical;
+	local horizontalPadding = config.messagePaddingHorizontal;
+	local verticalPadding = config.messagePaddingVertical;
 	if type(horizontalPadding) ~= "number" or horizontalPadding < 0
 		or type(verticalPadding) ~= "number" or verticalPadding < 0 then
-		error("ChitChat: config.messagePadding.horizontal and vertical must be non-negative numbers.");
+		error("ChitChat: message padding values must be non-negative numbers.");
 	end;
 	return horizontalPadding, verticalPadding;
 end;
 
 local function GetMessageMargins()
-	local messageMargins = config.messageMargins;
-	local horizontalMargin = messageMargins and messageMargins.horizontal;
-	local verticalMargin = messageMargins and messageMargins.vertical;
+	local horizontalMargin = config.messageMarginsHorizontal;
+	local verticalMargin = config.messageMarginsVertical;
 	if type(horizontalMargin) ~= "number" or horizontalMargin < 0
 		or type(verticalMargin) ~= "number" or verticalMargin < 0 then
-		error("ChitChat: config.messageMargins.horizontal and vertical must be non-negative numbers.");
+		error("ChitChat: message margin values must be non-negative numbers.");
 	end;
 	return horizontalMargin, verticalMargin;
 end;
@@ -81,22 +79,6 @@ local function GetLinePoints(line)
 	return points;
 end;
 
-local function AreLinePointsEqual(firstPoints, secondPoints)
-	if #firstPoints ~= #secondPoints then
-		return false;
-	end;
-	for index, point in ipairs(firstPoints) do
-		local otherPoint = secondPoints[index];
-		if point.point ~= otherPoint.point
-			or point.relativeTo ~= otherPoint.relativeTo
-			or point.relativePoint ~= otherPoint.relativePoint
-			or point.x ~= otherPoint.x then
-			return false;
-		end;
-	end;
-	return true;
-end;
-
 local function SetLineVerticalOffset(line, points, offset)
 	line:ClearAllPoints();
 	for _, point in ipairs(points) do
@@ -115,25 +97,29 @@ local function ApplyMessageLinePadding(chatFrame, line, horizontalInset, vertica
 	if not frameWidth then
 		error("ChitChat: Unable to determine the chat frame width for message padding.");
 	end;
-	local textWidth = frameWidth - horizontalInset * 2;
+	local outerLeft, outerRight, _, outerBottom = core.GetMessageInsets(chatFrame);
+	local textWidth = frameWidth - horizontalInset * 2 - outerLeft - outerRight;
 	if textWidth <= 0 then
 		error("ChitChat: Unable to apply message padding and margins to the chat frame.");
 	end;
 
 	local currentPoints = GetLinePoints(line);
 	local paddingLayout = line.ChitChatPaddingLayout;
-	local basePoints = currentPoints;
-	if paddingLayout and AreLinePointsEqual(currentPoints, paddingLayout.appliedPoints) then
-		basePoints = {};
-		for index, point in ipairs(currentPoints) do
-			local basePoint = paddingLayout.basePoints[index];
+
+	local basePoints = {};
+	for index, point in ipairs(currentPoints) do
+		local applied = paddingLayout and paddingLayout.appliedByPoint[point.point];
+		if applied and applied.relativeTo == point.relativeTo
+			and applied.relativePoint == point.relativePoint and math.abs(applied.x - point.x) < 0.01 then
 			basePoints[index] = {
-				point = basePoint.point,
-				relativeTo = basePoint.relativeTo,
-				relativePoint = basePoint.relativePoint,
-				x = basePoint.x,
-				y = point.y - (paddingLayout.verticalOffsets[index] or 0),
+				point = point.point,
+				relativeTo = point.relativeTo,
+				relativePoint = point.relativePoint,
+				x = paddingLayout.baseXByPoint[point.point],
+				y = point.y - (paddingLayout.verticalOffsetByPoint[point.point] or 0),
 			};
+		else
+			basePoints[index] = point;
 		end;
 	end;
 	local paddedPoints = {};
@@ -143,10 +129,9 @@ local function ApplyMessageLinePadding(chatFrame, line, horizontalInset, vertica
 		local pointVerticalOffset = 0;
 		if point.relativeTo == chatFrame then
 			horizontalOffset = point.point:find("RIGHT", 1, true)
-				and -horizontalInset or horizontalInset;
-			-- Keep the bottom message's padding inside the frame; margins are not applied here.
+				and -(horizontalInset + outerRight) or horizontalInset + outerLeft;
 			if point.point:find("BOTTOM", 1, true) then
-				pointVerticalOffset = pointVerticalOffset + verticalPadding;
+				pointVerticalOffset = pointVerticalOffset + verticalPadding + outerBottom;
 			end;
 		elseif point.point:find("TOP", 1, true) then
 			pointVerticalOffset = -verticalGap;
@@ -174,11 +159,13 @@ local function ApplyMessageLinePadding(chatFrame, line, horizontalInset, vertica
 			point.y
 		);
 	end;
-	line.ChitChatPaddingLayout = {
-		basePoints = basePoints,
-		appliedPoints = paddedPoints,
-		verticalOffsets = verticalOffsets,
-	};
+	local layout = { appliedByPoint = {}, baseXByPoint = {}, verticalOffsetByPoint = {} };
+	for index, point in ipairs(paddedPoints) do
+		layout.appliedByPoint[point.point] = point;
+		layout.baseXByPoint[point.point] = basePoints[index].x;
+		layout.verticalOffsetByPoint[point.point] = verticalOffsets[index];
+	end;
+	line.ChitChatPaddingLayout = layout;
 end;
 
 local function RestoreLinePoints(line, background)
@@ -196,7 +183,6 @@ local function ClearSlideState(background)
 end;
 
 local function CreateLineBackground(chatFrame, line)
-	local settings = config.backgrounds.message;
 	local horizontalPadding, verticalPadding = GetMessagePadding();
 
 	local lineAlphaSlide = line:CreateAnimationGroup();
@@ -207,8 +193,7 @@ local function CreateLineBackground(chatFrame, line)
 	alpha:SetSmoothing("OUT");
 	local surface;
 	if horizontalPadding > 0 or verticalPadding > 0 then
-		-- Fixed anchor offsets avoid querying secret message dimensions.
-		local texture = chatFrame:CreateTexture(nil, "BACKGROUND", nil, -8);
+		local texture = (line:GetParent() or chatFrame):CreateTexture(nil, "BACKGROUND", nil, -8);
 		texture:SetPoint("TOPLEFT", line, "TOPLEFT", -horizontalPadding, verticalPadding);
 		texture:SetPoint("BOTTOMRIGHT", line, "BOTTOMRIGHT", horizontalPadding, -verticalPadding);
 
@@ -222,16 +207,17 @@ local function CreateLineBackground(chatFrame, line)
 			end;
 			lastOpacity = opacity;
 
-			local colour = settings.colour;
+			local colour = config.messageBackgroundColour;
 			local effectiveAlpha = opacity * (colour.a or 1);
-			if settings.useGradient then
-				local edgeAlpha = effectiveAlpha * (settings.gradientEdgeOpacity or 0.5);
-				local mainColourRatio = math.max(0, math.min(settings.gradientMainColourRatio or 0, 1));
-				local mainColourSide = settings.gradientMainColourSide == "right" and "right" or "left";
+			if config.messageBackgroundUseGradient then
+				local edgeAlpha = effectiveAlpha * (config.messageBackgroundGradientEdgeOpacity or 0.5);
+				local mainColourRatio = math.max(0, math.min(config.messageBackgroundGradientMainColourRatio or 0, 1));
+				local mainColourSide = config.messageBackgroundGradientMainColourSideStringifiedValue == "right"
+					and "right" or "left";
 				local startAlpha = effectiveAlpha;
 				local endAlpha = effectiveAlpha;
 
-				if settings.gradientOneSided and mainColourRatio < 1 then
+				if config.messageBackgroundGradientOneSided and mainColourRatio < 1 then
 					if mainColourSide == "right" then
 						startAlpha = edgeAlpha;
 					else
@@ -253,10 +239,10 @@ local function CreateLineBackground(chatFrame, line)
 		surface = core.CreateGradientBackground(
 			chatFrame,
 			line,
-			settings,
+			"message",
 			0,
 			"BACKGROUND",
-			-8
+			-7
 		);
 	end;
 
@@ -279,7 +265,7 @@ local function SetBackgroundShown(background, shown)
 end;
 
 local function GetEntranceDistance()
-	return config.slideDistance + (core.padding.bottom or 0);
+	return config.slideDistance + (config.paddingBottom or 0);
 end;
 
 local function PlayEntrance(chatFrame, line, background)
@@ -323,7 +309,7 @@ local function RefreshChatFrame(chatFrame, state)
 	local horizontalPadding, verticalPadding = GetMessagePadding();
 	local horizontalMargin, verticalMargin = GetMessageMargins();
 	local horizontalInset = horizontalPadding + horizontalMargin;
-	-- Apply extra spacing between message frames, not between wrapped lines of one message.
+
 	local verticalGap = 2 * (verticalPadding + verticalMargin);
 	for _, line in ipairs(visibleLines) do
 		local info = line.messageInfo;
@@ -422,6 +408,10 @@ local function AttachToChatFrame(chatFrame)
 	end;
 
 	HideChatFrameTextures(chatFrame);
+	local chatBackground = core.CreateGradientBackground(chatFrame, chatFrame, "chat", 1, "BACKGROUND", -8);
+	chatFrame:HookScript("OnSizeChanged", function()
+		chatBackground:SetOpacity(1);
+	end);
 
 	local scrollBar = chatFrame.ScrollBar;
 	if scrollBar then
@@ -450,6 +440,13 @@ local function AttachToChatFrame(chatFrame)
 	end);
 
 	RefreshChatFrame(chatFrame, state);
+end;
+
+function core:RefreshChatFrameTimings()
+	for chatFrame in pairs(chatFrames) do
+		chatFrame:SetTimeVisible(config.messageTimeVisible);
+		chatFrame:SetFadeDuration(config.messageFadeDuration);
+	end;
 end;
 
 local driver = CreateFrame("Frame", "ChitChatMessageFadeDriver");

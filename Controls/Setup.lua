@@ -4,6 +4,7 @@
 local _, core = ...;
 
 local config = core.config;
+local controlIconPath = "Interface\\AddOns\\ChitChat\\Assets\\";
 
 local function IsCombatLogFrame(chatFrame)
 	if not chatFrame then
@@ -26,22 +27,93 @@ local function AddTrackedFrame(trackedFrames, frame, background)
 	end;
 end;
 
+local function HideOriginalControl(button)
+	if not button then
+		return nil;
+	end;
+	if not button.ChitChatHidden then
+		button:Hide();
+		button:SetAlpha(0);
+		button:HookScript("OnShow", function(hiddenButton)
+			hiddenButton:Hide();
+		end);
+		button.ChitChatHidden = true;
+	end;
+	return button;
+end;
+
+local function CreateControlButton(row, name, icon, tooltip, clickHandler)
+	local button = CreateFrame("Button", name, row);
+	button.ChitChatIcon = icon;
+	button:SetScript("OnClick", clickHandler);
+	button:SetScript("OnEnter", function(hoveredButton)
+		GameTooltip:SetOwner(hoveredButton, "ANCHOR_RIGHT");
+		GameTooltip:SetText(tooltip, 1, 1, 1);
+		GameTooltip:Show();
+	end);
+	button:SetScript("OnLeave", function()
+		GameTooltip:Hide();
+	end);
+	return button;
+end;
+
+local function ForwardOriginalClick(button)
+	if not button then
+		return nil;
+	end;
+	local onClick = button:GetScript("OnClick");
+	if not onClick then
+		error("ChitChat: A Blizzard chat control is missing its OnClick handler.");
+	end;
+	return function(_, ...)
+		onClick(button, ...);
+	end;
+end;
+
 local function GetControlButtons(row)
 	local buttons = {};
-	local socialButton = _G["QuickJoinToastButton"];
+	local socialButton = HideOriginalControl(_G["QuickJoinToastButton"]);
 	if socialButton then
-		core.HideSocialButtonDecorations(socialButton);
-		buttons[#buttons + 1] = socialButton;
+		buttons[#buttons + 1] = CreateControlButton(
+			row,
+			"ChitChatQuickJoinButton",
+			controlIconPath .. "socialicon.png",
+			QUICK_JOIN or "Quick Join",
+			ForwardOriginalClick(socialButton)
+		);
 	end;
-	local channelButton = _G["ChatFrameChannelButton"];
+	local channelButton = HideOriginalControl(_G["ChatFrameChannelButton"]);
 	if channelButton then
-		buttons[#buttons + 1] = channelButton;
+		buttons[#buttons + 1] = CreateControlButton(
+			row,
+			"ChitChatChannelButton",
+			controlIconPath .. "chatchannels.png",
+			CHAT_CHANNELS or "Channels",
+			ForwardOriginalClick(channelButton)
+		);
 	end;
-	local menuButton = _G["ChatFrameMenuButton"];
+	local menuButton = HideOriginalControl(_G["ChatFrameMenuButton"]);
 	if menuButton then
-		buttons[#buttons + 1] = menuButton;
+		buttons[#buttons + 1] = CreateControlButton(
+			row,
+			"ChitChatChatTypeButton",
+			controlIconPath .. "chattype.png",
+			CHAT_MENU or "Chat Type",
+			ForwardOriginalClick(menuButton)
+		);
 	end;
 	buttons[#buttons + 1] = core.CreateHistoryControlButton(row);
+	local settingsButton = CreateControlButton(
+		row,
+		"ChitChatSettingsButton",
+		controlIconPath .. "cogicon.png",
+		"ChitChat Settings",
+		function()
+			local category = core.Settings.category;
+			Settings.OpenToCategory(type(category) == "table" and category:GetID() or category);
+		end
+	);
+	buttons[#buttons + 1] = settingsButton;
 	return buttons;
 end;
 
@@ -120,7 +192,7 @@ local function CreateSelectedChatFramePositioner(row, chatFrame, buttons, contro
 
 		local editBoxTabOffset;
 		if config.chatBoxTop and selectedTab and not config.chatTabsAtBottom then
-			local chatTop = selectedChatFrame:GetTop();
+			local chatTop = core.GetLayoutAnchor(selectedChatFrame):GetTop();
 			local tabEdge = config.chatBoxAboveTabs and selectedTab:GetTop() or selectedTab:GetBottom();
 			if not chatTop or not tabEdge then
 				error("ChitChat: Unable to determine selected chat frame tab bounds for chatBoxTop.");
@@ -128,7 +200,7 @@ local function CreateSelectedChatFramePositioner(row, chatFrame, buttons, contro
 			editBoxTabOffset = tabEdge - chatTop;
 		end;
 
-		if selectedChatFrame == activeChatFrame and selectedEditBox == activeEditBox then
+		if selectedChatFrame == activeChatFrame and selectedEditBox == activeEditBox and not core.controlsDirty then
 			if IsCombatLogFrame(selectedChatFrame) and selectedEditBox and not selectedEditBox:IsShown() then
 				selectedEditBox:Show();
 			end;
@@ -144,6 +216,7 @@ local function CreateSelectedChatFramePositioner(row, chatFrame, buttons, contro
 		end;
 
 		core:PositionChatInput(selectedEditBox, selectedChatFrame, selectedTab);
+		core.controlsDirty = nil;
 		activeEditBoxTabOffset = editBoxTabOffset;
 		core.PositionControlRow(
 			row,
@@ -169,7 +242,7 @@ local function CreateControls(chatFrame)
 	if not row then
 		error("ChitChat: ChatFrame1ButtonFrame is unavailable.");
 	end;
-	if config.controls.outside then
+	if config.controlsOutside then
 		row:SetParent(UIParent);
 	end;
 
@@ -210,6 +283,7 @@ local function CreateControls(chatFrame)
 	local driver = CreateFrame("Frame", "ChitChatControlsFadeDriver");
 	driver:SetScript("OnUpdate", function(_, elapsed)
 		local selectedChatFrame = PositionForSelectedChatFrame();
+		core.EnforceTabAnchor(chatFrame);
 		for index, button in ipairs(buttons) do
 			core.PositionControlButton(button, row, index, controlPosition);
 		end;
@@ -218,10 +292,12 @@ local function CreateControls(chatFrame)
 			hovered = true;
 		end;
 
-		local tabTargetAlpha = (hovered or IsCombatLogFrame(selectedChatFrame)) and 1 or config.idleAlpha;
+		local alwaysShowControlsAndTabs = config.alwaysShowControlsAndTabs;
+		local tabTargetAlpha = (alwaysShowControlsAndTabs or hovered or IsCombatLogFrame(selectedChatFrame))
+			and 1 or config.idleAlpha;
 		local controlsHovered = AreControlButtonsHovered(row, buttons);
-		local controlTargetAlpha = controlsHovered and 1 or config.idleAlpha;
-		local step = math.min(elapsed / config.fadeDuration, 1);
+		local controlTargetAlpha = (alwaysShowControlsAndTabs or controlsHovered) and 1 or config.idleAlpha;
+		local step = alwaysShowControlsAndTabs and 1 or math.min(elapsed / config.fadeDuration, 1);
 		UpdateTrackedFrameAlpha(state.trackedFrames, tabTargetAlpha, step, true);
 		UpdateTrackedFrameAlpha(state.controlFrames, controlTargetAlpha, step, false);
 	end);
@@ -231,7 +307,7 @@ local loader = CreateFrame("Frame", "ChitChatControlsLoader");
 loader:RegisterEvent("PLAYER_ENTERING_WORLD");
 loader:SetScript("OnEvent", function()
 	local chatFrame = _G["ChatFrame1"];
-	CreateControls(chatFrame);
 	core.PositionChatFrameForPadding(chatFrame);
+	CreateControls(chatFrame);
 	loader:UnregisterEvent("PLAYER_ENTERING_WORLD");
 end);

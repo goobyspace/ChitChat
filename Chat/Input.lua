@@ -5,7 +5,9 @@ local config = core.config;
 local function HideEditBoxBorders(editBox, keepTextures)
 	keepTextures = keepTextures or editBox.ChitChatBackgroundTextures;
 	for _, region in ipairs({ editBox:GetRegions() }) do
-		if not (keepTextures and keepTextures[region]) and region:GetObjectType() == "Texture" then
+		if region:GetObjectType() == "Texture" and region:GetWidth() <= 3 then
+			-- Leave the blizz line alone so we get the text blinker, but delete the big round circle
+		elseif not (keepTextures and keepTextures[region]) and region:GetObjectType() == "Texture" then
 			region:Hide();
 		elseif region.SetIgnoreParentAlpha then
 			region:SetIgnoreParentAlpha(false);
@@ -25,6 +27,7 @@ function core:PositionChatInput(editBox, chatFrame, tab)
 	end;
 
 	local height = math.max(editBox:GetHeight(), config.controlSize);
+	chatFrame = core.GetLayoutAnchor(chatFrame);
 	editBox:ClearAllPoints();
 	if config.chatBoxTop then
 		if config.chatTabsAtBottom then
@@ -65,11 +68,10 @@ function core:InitializeChatInput(editBox)
 		return;
 	end;
 
-	local settings = config.backgrounds.chatInput;
 	local background = core.CreateGradientBackground(
 		editBox,
 		editBox,
-		settings,
+		"chatInput",
 		1,
 		"ARTWORK",
 		-1

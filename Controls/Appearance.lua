@@ -14,9 +14,10 @@ function core.HideDefaultTextures(frame, keepTexture)
 	end;
 end;
 
+core.CONTROL_BACKGROUND_INSET = 2;
+
 function core.CreateControlBackground(frame, inset, nameSuffix)
 	local backgroundParent = frame:GetParent() or UIParent;
-	local colour = config.backgrounds.chatTab.colour;
 	local frameName = frame:GetName();
 	if not frameName then
 		unnamedBackgroundIndex = unnamedBackgroundIndex + 1;
@@ -25,22 +26,78 @@ function core.CreateControlBackground(frame, inset, nameSuffix)
 	local background = CreateFrame(
 		"Frame",
 		"ChitChat" .. frameName .. (nameSuffix or "Background"),
-		backgroundParent,
-		"BackdropTemplate"
+		backgroundParent
 	);
 	background:SetFrameStrata(frame:GetFrameStrata());
 	background:SetFrameLevel(math.max(backgroundParent:GetFrameLevel(), frame:GetFrameLevel() - 1));
 	background:SetPoint("TOPLEFT", frame, "TOPLEFT", -inset, inset);
 	background:SetPoint("BOTTOMRIGHT", frame, "BOTTOMRIGHT", inset, -inset);
-	background:SetBackdrop({
-		bgFile = "Interface\\Tooltips\\UI-Tooltip-Background",
-		edgeFile = "Interface\\Tooltips\\UI-Tooltip-Border",
-		edgeSize = 8,
-		insets = { left = 2, right = 2, top = 2, bottom = 2 },
-	});
-	background:SetBackdropColor(colour.r, colour.g, colour.b, colour.a or 1);
-	background:SetBackdropBorderColor(0, 0, 0, 1);
+	core.CreateGradientBackground(background, background, "control", 1, "BACKGROUND");
 	return background;
+end;
+
+local HOVER_INSET = 1.5;
+local PRESSED_INSET = 3;
+local INSET_SPEED = 30;
+
+function core.AnimateControlButtonIcon(button, textures)
+	if button.ChitChatIconAnimated then
+		button.ChitChatIconAnimated.textures = textures;
+		return;
+	end;
+	local state = { textures = textures };
+	button.ChitChatIconAnimated = state;
+	local current = 0;
+	local hovered = false;
+	local pressed = false;
+
+	local function Apply(inset)
+		for _, texture in ipairs(state.textures) do
+			texture:ClearAllPoints();
+			texture:SetPoint("TOPLEFT", button, "TOPLEFT", inset, -inset);
+			texture:SetPoint("BOTTOMRIGHT", button, "BOTTOMRIGHT", -inset, inset);
+		end;
+	end;
+
+	local function Target()
+		if pressed then
+			return PRESSED_INSET;
+		end;
+		return hovered and HOVER_INSET or 0;
+	end;
+
+	button:HookScript("OnEnter", function()
+		hovered = true;
+	end);
+	button:HookScript("OnLeave", function()
+		hovered = false;
+		pressed = false;
+	end);
+	button:HookScript("OnMouseDown", function()
+		pressed = true;
+	end);
+	button:HookScript("OnMouseUp", function()
+		pressed = false;
+	end);
+	button:HookScript("OnHide", function()
+		hovered = false;
+		pressed = false;
+		current = 0;
+		Apply(0);
+	end);
+	button:HookScript("OnUpdate", function(_, elapsed)
+		local target = Target();
+		if current == target then
+			return;
+		end;
+		local step = INSET_SPEED * elapsed;
+		if math.abs(target - current) <= step then
+			current = target;
+		else
+			current = current + (target > current and step or -step);
+		end;
+		Apply(current);
+	end);
 end;
 
 function core.ApplyControlButtonIcon(button, iconTexture)
@@ -48,7 +105,7 @@ function core.ApplyControlButtonIcon(button, iconTexture)
 		return;
 	end;
 
-	iconTexture = iconTexture or config.controlIcon;
+	iconTexture = iconTexture or "Interface\\Worldmap\\ChatBubble_64Grey";
 	button:SetAlpha(1);
 	core.HideDefaultTextures(button);
 	local function SetTextureOpaque(texture)
@@ -85,16 +142,6 @@ function core.ApplyControlButtonIcon(button, iconTexture)
 		AddIconTexture(button:GetDisabledTexture());
 	end;
 	button.ChitChatIconTextures = iconTextures;
-	return core.CreateControlBackground(button, 2, "Background");
-end;
-
-function core.HideSocialButtonDecorations(button)
-	for _, region in ipairs({ button:GetRegions() }) do
-		if region:GetObjectType() == "FontString" then
-			region:Hide();
-		end;
-	end;
-	for _, child in ipairs({ button:GetChildren() }) do
-		child:Hide();
-	end;
+	core.AnimateControlButtonIcon(button, iconTextures);
+	return core.CreateControlBackground(button, core.CONTROL_BACKGROUND_INSET, "Background");
 end;

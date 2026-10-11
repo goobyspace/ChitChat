@@ -3,13 +3,10 @@ local _, core = ...;
 local config = core.config;
 
 local function ApplyTabGradient(background)
-	local settings = config.backgrounds.chatTab;
-	background:SetBackdropColor(0, 0, 0, 0);
-	background:SetBackdropBorderColor(0, 0, 0, 0);
 	return core.CreateGradientBackground(
 		background,
 		background,
-		settings,
+		"chatTab",
 		1,
 		"ARTWORK"
 	);
@@ -21,7 +18,8 @@ local function ApplyTabSkin(tab)
 	end;
 
 	core.HideDefaultTextures(tab);
-	tab:SetHeight(config.tabHeight);
+	local _, fontHeight = ChatFontNormal:GetFont();
+	tab:SetHeight(math.max(config.tabHeight, math.ceil(fontHeight or 12) + 6));
 	if tab.glow then
 		tab.glow:Hide();
 	end;

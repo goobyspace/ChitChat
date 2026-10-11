@@ -4,6 +4,8 @@ function core:InitEventHandler(event, name)
     if event == "ADDON_LOADED" then
         if name ~= "ChitChat" then return; end;
         if ChitChatGlobalStorage == nil then ChitChatGlobalStorage = {}; end;
+        core.Settings:Initialize();
+        core:InitializeChatHistorySaving();
         return;
     end;
 
@@ -13,6 +15,7 @@ function core:InitEventHandler(event, name)
     end;
 
     if event == "PLAYER_LOGIN" then
+        core:InitializeTimestamps();
         core:RestoreChatHistory();
         core:InitializeChitChat();
     end;
