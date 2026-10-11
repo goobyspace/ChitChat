@@ -68,6 +68,16 @@ core.Settings = {
 					default = true,
 				},
 				{
+					name = "chitChatTimestampGap",
+					dependsOn = "chitChatShowTimestamps",
+					enabledWhen = function()
+						return core.config.chitChatShowTimestamps;
+					end,
+					title = "Timestamp gap",
+					description = "Add a space between the timestamp and the message.",
+					default = false,
+				},
+				{
 					name = "chitChatTimestamp24Hour",
 					dependsOn = "chitChatShowTimestamps",
 					enabledWhen = function()
@@ -141,7 +151,7 @@ core.Settings = {
 					reload = false,
 					title = "Fade duration",
 					description = "Time it takes from start of fade until the message is fully faded.",
-					default = 3,
+					default = 2,
 					min = 0,
 					max = 30,
 					step = 0.1,
@@ -177,7 +187,7 @@ core.Settings = {
 				{
 					name = "recentMessageWindow",
 					reload = false,
-					title = "Message animation grouping time",
+					title = "Animation grouping time",
 					description =
 					"Time from first message for how many messages after get grouped into the same animation, so that a quick burst of messages just add on to the animation instead of starting a new one.",
 					default = 0.3,
@@ -328,8 +338,8 @@ core.Settings = {
 					options = {
 						{ value = "TOPLEFT",     text = "Top left" },
 						{ value = "TOPRIGHT",    text = "Top right" },
-						{ value = "BOTTOMLEFT",  text = "Bottom left" },
 						{ value = "BOTTOMRIGHT", text = "Bottom right" },
+						{ value = "BOTTOMLEFT",  text = "Bottom left" },
 					},
 				},
 			},

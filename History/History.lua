@@ -1,10 +1,39 @@
 local _, core = ...;
 
 local config = core.config;
-local historyStorageKey = "chatHistory";
+local historyStorageKey = "chatHistoryByCharacter";
 local historySavePending = false;
 local historySaveScheduled = false;
 local historySavingInitialized = false;
+
+local function GetCharacterKey()
+	local name, realm = UnitFullName("player");
+	if type(name) ~= "string" or name == "" then
+		name = UnitName("player");
+	end;
+	if type(realm) ~= "string" or realm == "" then
+		realm = GetRealmName();
+	end;
+	if type(name) ~= "string" or name == "" or type(realm) ~= "string" or realm == "" then
+		error("ChitChat: Unable to determine the current character.");
+	end;
+
+	return realm .. "-" .. name;
+end;
+
+local function GetCharacterHistories()
+	local historiesByCharacter = ChitChatGlobalStorage and ChitChatGlobalStorage[historyStorageKey];
+	if type(historiesByCharacter) ~= "table" then
+		return nil;
+	end;
+
+	local histories = historiesByCharacter[GetCharacterKey()];
+	if type(histories) == "table" then
+		return histories;
+	end;
+
+	return nil;
+end;
 
 local function IsNormalChatFrame(chatFrame)
 	if not chatFrame then
@@ -190,7 +219,7 @@ function core:GetChatHistoryText(maxLines)
 		end;
 	end;
 	if #lines == 0 then
-		local savedHistories = ChitChatGlobalStorage and ChitChatGlobalStorage[historyStorageKey];
+		local savedHistories = GetCharacterHistories();
 		local frameIndex = chatFrame:GetID();
 		local savedLines = type(savedHistories) == "table" and savedHistories[frameIndex];
 		if type(savedLines) == "table" then
@@ -266,7 +295,12 @@ function core:SaveChatHistory()
 		return;
 	end;
 
-	ChitChatGlobalStorage[historyStorageKey] = GetChatHistories();
+	local historiesByCharacter = ChitChatGlobalStorage[historyStorageKey];
+	if type(historiesByCharacter) ~= "table" then
+		historiesByCharacter = {};
+		ChitChatGlobalStorage[historyStorageKey] = historiesByCharacter;
+	end;
+	historiesByCharacter[GetCharacterKey()] = GetChatHistories();
 end;
 
 function core:RestoreChatHistory()
@@ -274,7 +308,14 @@ function core:RestoreChatHistory()
 		return;
 	end;
 
-	local histories = ChitChatGlobalStorage and ChitChatGlobalStorage[historyStorageKey];
+	local historiesByCharacter = ChitChatGlobalStorage and ChitChatGlobalStorage[historyStorageKey];
+	if type(historiesByCharacter) ~= "table" then
+		historiesByCharacter = {};
+		ChitChatGlobalStorage[historyStorageKey] = historiesByCharacter;
+	end;
+
+	local characterKey = GetCharacterKey();
+	local histories = historiesByCharacter[characterKey];
 	if type(histories) ~= "table" then
 		return;
 	end;

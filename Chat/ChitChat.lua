@@ -110,7 +110,8 @@ local function ApplyMessageLinePadding(chatFrame, line, horizontalInset, vertica
 	for index, point in ipairs(currentPoints) do
 		local applied = paddingLayout and paddingLayout.appliedByPoint[point.point];
 		if applied and applied.relativeTo == point.relativeTo
-			and applied.relativePoint == point.relativePoint and math.abs(applied.x - point.x) < 0.01 then
+			and applied.relativePoint == point.relativePoint and math.abs(applied.x - point.x) < 0.01
+			and math.abs(applied.y - point.y) < 0.01 then
 			basePoints[index] = {
 				point = point.point,
 				relativeTo = point.relativeTo,

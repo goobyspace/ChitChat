@@ -16,8 +16,8 @@ local function HookChatFrameCornerPosition(chatFrame)
 	hooksecurefunc(chatFrame, "OnDragStart", function()
 		chatFrame.ChitChatEditModeDragging = true;
 	end);
-	local onSystemPositionChange = chatFrame.OnSystemPositionChange;
-	chatFrame.OnSystemPositionChange = function(frame, ...)
+	-- Post-hook instead of replacing the method, so Blizzard's edit mode code stays untainted.
+	hooksecurefunc(chatFrame, "OnSystemPositionChange", function(frame)
 		local normalizeCorner = frame.ChitChatEditModeDragging;
 		frame.ChitChatEditModeDragging = nil;
 
@@ -31,9 +31,7 @@ local function HookChatFrameCornerPosition(chatFrame)
 			frame:ClearAllPoints();
 			frame:SetPoint("BOTTOMLEFT", UIParent, "BOTTOMLEFT", 0, 0);
 		end;
-
-		return onSystemPositionChange(frame, ...);
-	end;
+	end);
 	chatFrame.ChitChatCornerPositionHooked = true;
 end;
 

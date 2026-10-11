@@ -98,7 +98,8 @@ local function WrapAddMessage(addMessage)
 		if config.chitChatShowTimestamps and type(message) == "string"
 			and not (issecretvalue and issecretvalue(message))
 			and IsTimestamp(timestamp) then
-			message = GetTimestampText(timestamp) .. message;
+			local gap = config.chitChatTimestampGap and " " or "";
+			message = GetTimestampText(timestamp) .. gap .. message;
 		end;
 		SeedChatMessageMetadata(chatFrame);
 		local result = addMessage(chatFrame, message, ...);

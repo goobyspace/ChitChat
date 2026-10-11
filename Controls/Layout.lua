@@ -138,14 +138,12 @@ local function GetControlRowAnchors(chatFrame, position, selectedTab, isCombatLo
 end;
 
 function core.PositionControlRow(row, chatFrame, buttonCount, position, selectedTab, isCombatLog, areaTopOffset)
-	local originalFrame = chatFrame;
 	chatFrame = core.GetLayoutAnchor(chatFrame);
 	local width, height = GetControlRowSize(buttonCount);
 	local rowPoint, relativeTo, framePoint, offsetX, offsetY =
 		GetControlRowAnchors(chatFrame, position, selectedTab, isCombatLog);
 	if config.controlsVertical and config.controlsOutside and not position.bottom then
-		local topOffset = areaTopOffset or select(3, core.GetMessageInsets(originalFrame)) - (config.paddingTop or 0);
-		offsetY = math.max(topOffset, 0);
+		offsetY = areaTopOffset and math.max(areaTopOffset, 0) or 0;
 	end;
 	row:SetSize(width, height);
 	row:ClearAllPoints();

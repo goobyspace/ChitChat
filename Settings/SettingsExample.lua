@@ -41,6 +41,9 @@ local function FormatSampleMessage(text)
     local timestamp = "";
     if ChitChatGlobalStorage.chitChatShowTimestamps then
         timestamp = core:GetTimestampText();
+        if ChitChatGlobalStorage.chitChatTimestampGap then
+            timestamp = timestamp .. " ";
+        end;
     end;
     local name = "[" .. SAMPLE_COLOUR:WrapTextInColorCode(SAMPLE_NAME) .. "]";
     return timestamp .. name .. ": " .. text;
@@ -372,7 +375,7 @@ function example:UpdateControls(refreshBackgrounds)
     local position = core.GetControlPosition();
     local config = ChitChatGlobalStorage;
     local tab = not config.chatTabsAtBottom and frame.tabs[1] or nil;
-    core.PositionControlRow(row, frame.messageArea, #buttons, position, tab, false, frame.areaTopOffset or 0);
+    core.PositionControlRow(row, frame.messageArea, #buttons, position, tab, false);
     for i, button in ipairs(buttons) do
         if refreshBackgrounds and button.ChitChatBackground then
             button.ChitChatBackground:Hide();
@@ -424,8 +427,6 @@ function example:UpdateInput()
                 bottomPart = math.max(bottomPart, tabs:GetHeight());
             end;
             insetBottom = insetBottom + math.max(size - bottomPart - 2, 0);
-        else
-            insetTop = insetTop + size;
         end;
     end;
     local innerWidth = WINDOW_WIDTH - WINDOW_PADDING * 2 - insetLeft - insetRight;
@@ -521,7 +522,8 @@ function example:Update(settingInfo)
     end;
 
     if key == "chitChatShowTimestamps" or key == "chitChatTimestamp24Hour"
-        or key == "chitChatTimestampLocalTime" or key == "chitChatTimestampColor" then
+        or key == "chitChatTimestampLocalTime" or key == "chitChatTimestampColor"
+        or key == "chitChatTimestampGap" then
         core:RefreshChatTimestamps();
         self:RestartFadingMessage();
         return;
