@@ -50,6 +50,14 @@ function core:GetTimestampText(timestamp, chatFrame)
 	return GetTimestampText(timestamp, chatFrame);
 end;
 
+-- Removes timestamp prefixes this addon added (e.g. persisted in saved history).
+local function StripTimestamp(text)
+	if type(text) ~= "string" or (issecretvalue and issecretvalue(text)) then
+		return text;
+	end;
+	return (text:gsub("|c%x%x%x%x%x%x%x%x%[%d%d?:%d%d[^%]|]*%]|r ?", ""));
+end;
+
 local function SeedChatMessageMetadata(chatFrame)
 	if chatMessageMetadata[chatFrame] then
 		return;
@@ -60,7 +68,7 @@ local function SeedChatMessageMetadata(chatFrame)
 		for messageIndex = 1, chatFrame:GetNumMessages() do
 			local message = chatFrame:GetMessageInfo(messageIndex);
 			messages[#messages + 1] = {
-				text = type(message) == "string" and message or nil,
+				text = type(message) == "string" and StripTimestamp(message) or nil,
 			};
 		end;
 	end;
@@ -92,6 +100,7 @@ local function WrapAddMessage(addMessage)
 		if pending then
 			timestamp = pending.timestamp;
 		end;
+		message = StripTimestamp(message);
 		local rawMessage = message;
 		local recordableMessage = type(rawMessage) == "string"
 			and not (issecretvalue and issecretvalue(rawMessage));

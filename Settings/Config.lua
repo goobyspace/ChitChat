@@ -111,7 +111,7 @@ core.Settings = {
 			},
 		},
 		{
-			name = "Fade animation",
+			name = "Control/input fade animation",
 			settings = {
 				{
 					name = "fadeDuration",
@@ -119,7 +119,7 @@ core.Settings = {
 					title = "Fade duration",
 					description =
 					"How long it takes to fade controls & inputs after moving your cursor. Messages use a seperate setting.",
-					default = 0.45,
+					default = 0.15,
 					min = 0.05,
 					max = 5,
 					step = 0.05,
