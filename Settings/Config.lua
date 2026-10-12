@@ -24,6 +24,17 @@ function core.GetConfig(chatFrame, key)
 	return ChitChatGlobalStorage[key];
 end;
 
+function core.GetGradientSettings(chatFrame, prefix)
+	return {
+		colour = core.GetConfig(chatFrame, prefix .. "Colour"),
+		mainColourRatio = core.GetConfig(chatFrame, prefix .. "GradientMainColourRatio"),
+		oneSidedGradient = core.GetConfig(chatFrame, prefix .. "GradientOneSided"),
+		mainColourSide = core.GetConfig(chatFrame, prefix .. "GradientMainColourSideStringifiedValue"),
+		edgeOpacity = core.GetConfig(chatFrame, prefix .. "GradientEdgeOpacity"),
+		useGradient = core.GetConfig(chatFrame, prefix .. "UseGradient"),
+	};
+end;
+
 core.Settings = {
 	{
 		{

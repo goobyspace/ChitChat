@@ -301,7 +301,7 @@ function core.CreateHistoryControlButton(parent)
 	button.ChitChatBackground = core.ApplyControlButtonIcon(
 		button,
 		"Interface\\AddOns\\ChitChat\\Assets\\copypaste.png",
-		_G["ChatFrame1"]
+		core.GetGradientSettings(_G["ChatFrame1"], "controlBackground")
 	);
 	return button;
 end;

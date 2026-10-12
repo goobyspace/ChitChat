@@ -5,50 +5,6 @@ local _, core = ...;
 
 local GetConfig = core.GetConfig;
 
-local ClampChatFrameToScreen = core.ClampChatFrameToScreen;
-
-local function HookChatFrameCornerPosition(chatFrame)
-	if not chatFrame.OnDragStart or not chatFrame.OnSystemPositionChange
-		or chatFrame.ChitChatCornerPositionHooked then
-		return;
-	end;
-
-	hooksecurefunc(chatFrame, "OnDragStart", function()
-		chatFrame.ChitChatEditModeDragging = true;
-	end);
-
-	hooksecurefunc(chatFrame, "OnSystemPositionChange", function(frame)
-		local normalizeCorner = frame.ChitChatEditModeDragging;
-		frame.ChitChatEditModeDragging = nil;
-
-		local left = frame:GetLeft();
-		local bottom = frame:GetBottom();
-		local parentLeft = UIParent:GetLeft();
-		local parentBottom = UIParent:GetBottom();
-		if normalizeCorner and left and bottom and parentLeft and parentBottom
-			and math.abs(left - parentLeft) <= 1
-			and math.abs(bottom - parentBottom) <= 1 then
-			frame:ClearAllPoints();
-			frame:SetPoint("BOTTOMLEFT", UIParent, "BOTTOMLEFT", 0, 0);
-		end;
-	end);
-	chatFrame.ChitChatCornerPositionHooked = true;
-end;
-
-local function RestoreSavedBottomLeftAnchor(chatFrame)
-	local anchorInfo = chatFrame.systemInfo and chatFrame.systemInfo.anchorInfo;
-	if not anchorInfo or anchorInfo.point ~= "BOTTOMLEFT"
-		or anchorInfo.relativeTo ~= "UIParent"
-		or anchorInfo.relativePoint ~= "BOTTOMLEFT"
-		or math.abs(anchorInfo.offsetX or math.huge) > 0.1
-		or math.abs(anchorInfo.offsetY or math.huge) > 0.1 then
-		return;
-	end;
-
-	chatFrame:ClearAllPoints();
-	chatFrame:SetPoint("BOTTOMLEFT", UIParent, "BOTTOMLEFT", 0, 0);
-end;
-
 local function GetTabMetrics(chatFrame, tab)
 	if chatFrame.ChitChatTabMetrics then
 		return chatFrame.ChitChatTabMetrics;
@@ -85,40 +41,10 @@ local function GetOuterElementInsets(chatFrame, tab, metrics)
 		bottom = math.max(bottom, editBoxHeight + 2);
 	end;
 
-	if GetConfig(chatFrame, "controlsOutside") then
-		local position = core.GetControlPosition(chatFrame);
-		local size = GetConfig(chatFrame, "controlSize") + 2;
-		if GetConfig(chatFrame, "controlsVertical") then
-			if position.right then
-				right = math.max(right, size);
-			else
-				left = math.max(left, size);
-			end;
-		elseif position.bottom then
-			bottom = math.max(bottom, size);
-		else
-			top = math.max(top, size + (tab and not GetConfig(chatFrame, "chatTabsAtBottom") and math.max(0, metrics.above) or 0));
-		end;
-	end;
-
-	return left, right, top, bottom;
-end;
-
-function core.GetLayoutAnchor(chatFrame)
-	local main = _G["ChatFrame1"];
-	if main and main.ChitChatInner and (chatFrame == main or chatFrame.isDocked) then
-		return main.ChitChatInner;
-	end;
-	return chatFrame;
-end;
-
-function core.GetMessageInsets(chatFrame)
-	local main = _G["ChatFrame1"];
-	local insets = main and (chatFrame == main or chatFrame.isDocked) and main.ChitChatSelectionInsets;
-	if insets then
-		return insets[1], insets[2], insets[3], insets[4];
-	end;
-	return 0, 0, 0, 0;
+	local tabTopOffset = tab and not GetConfig(chatFrame, "chatTabsAtBottom") and math.max(0, metrics.above) or 0;
+	local controlLeft, controlRight, controlTop, controlBottom = core.GetControlInsets(chatFrame, tabTopOffset);
+	return math.max(left, controlLeft), math.max(right, controlRight),
+		math.max(top, controlTop), math.max(bottom, controlBottom);
 end;
 
 local function GetCombatLogBarHeight(frame)
@@ -133,13 +59,10 @@ core.SCROLLBAR_WIDTH = 8;
 
 -- horizontal space the optional scrollbar takes from the messages
 local function GetScrollBarInsets(frame)
-	if not GetConfig(frame, "showScrollbar") then
-		return 0, 0;
+	if core.GetScrollBarInsets then
+		return core.GetScrollBarInsets(frame);
 	end;
-	if GetConfig(frame, "scrollbarSideStringifiedValue") == "LEFT" then
-		return core.SCROLLBAR_WIDTH + 2, 0;
-	end;
-	return 0, core.SCROLLBAR_WIDTH + 2;
+	return 0, 0;
 end;
 
 -- this broke being able to click hyperlinks in chat so use it sparingly
@@ -253,9 +176,9 @@ local function WaitForTabGeometry(chatFrame, tab)
 end;
 
 function core.PositionChatFrameForPadding(chatFrame)
-	ClampChatFrameToScreen(chatFrame);
-	HookChatFrameCornerPosition(chatFrame);
-	RestoreSavedBottomLeftAnchor(chatFrame);
+	core.ClampChatFrameToScreen(chatFrame);
+	core.HookChatFrameCornerPosition(chatFrame);
+	core.RestoreSavedBottomLeftAnchor(chatFrame);
 	local tab = _G["ChatFrame1Tab"];
 	local metrics = GetTabMetrics(chatFrame, tab);
 	if not metrics then
@@ -293,6 +216,36 @@ function core.PositionChatFrameForPadding(chatFrame)
 		chatFrame:MarkLayoutDirty();
 	end;
 	core.EnforceTabAnchor(chatFrame);
+end;
+
+function core:InitializeChatFrameLayout(chatFrame, refresh)
+	if not chatFrame then
+		return false;
+	end;
+	if chatFrame.ChitChatLayoutInitialized and not refresh then
+		return true;
+	end;
+	if chatFrame == _G["ChatFrame1"] then
+		core.PositionChatFrameForPadding(chatFrame);
+	end;
+	core.SyncMessageContainers();
+	local editBox = chatFrame.editBox;
+	if editBox and core.PositionChatInput then
+		local frameIndex = chatFrame:GetID();
+		local tab = frameIndex and _G["ChatFrame" .. frameIndex .. "Tab"] or _G["ChatFrame1Tab"];
+		local canPositionInput = true;
+		if GetConfig(chatFrame, "chatBoxTop") and tab
+			and not GetConfig(chatFrame, "chatTabsAtBottom") then
+			local chatTop = core.GetLayoutAnchor(chatFrame):GetTop();
+			local tabEdge = GetConfig(chatFrame, "chatBoxAboveTabs") and tab:GetTop() or tab:GetBottom();
+			canPositionInput = chatTop ~= nil and tabEdge ~= nil;
+		end;
+		if canPositionInput then
+			core:PositionChatInput(editBox, chatFrame, tab);
+		end;
+	end;
+	chatFrame.ChitChatLayoutInitialized = true;
+	return true;
 end;
 
 local function AlignDockToInner(chatFrame)
@@ -395,26 +348,3 @@ function core.EnforceTabAnchor(chatFrame)
 	AlignDockToInner(chatFrame);
 	AlignDockScrollFrame(tab);
 end;
-
-local function ReapplyPaddingAfterEditMode()
-	local chatFrame = _G["ChatFrame1"];
-	if not chatFrame or not chatFrame.ChitChatSelectionInsets then
-		return;
-	end;
-
-	core.PositionChatFrameForPadding(chatFrame);
-end;
-
-local editModeClampLoader = CreateFrame("Frame");
-editModeClampLoader:RegisterEvent("ADDON_LOADED");
-editModeClampLoader:SetScript("OnEvent", function(_, _, addonName)
-	if addonName == "Blizzard_EditMode" then
-		local chatFrame = _G["ChatFrame1"];
-		ClampChatFrameToScreen(chatFrame);
-		HookChatFrameCornerPosition(chatFrame);
-		if EditModeManagerFrame and EditModeManagerFrame.ExitEditMode then
-			hooksecurefunc(EditModeManagerFrame, "ExitEditMode", ReapplyPaddingAfterEditMode);
-		end;
-		editModeClampLoader:UnregisterEvent("ADDON_LOADED");
-	end;
-end);

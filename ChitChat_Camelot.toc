@@ -7,24 +7,29 @@
 ## IconTexture: interface\AddOns\ChitChat\Assets\ChitChat.png
 ## SavedVariables: ChitChatGlobalStorage
 
-Chat/Clamp.lua
 Settings/Config.lua
 Settings/SettingInitializers.lua
 Settings/Settings.lua
 Settings/SettingsExample.lua
-Misc/Utils.lua
-Misc/Backgrounds.lua
+Shared/Utils.lua
+Shared/Backgrounds.lua
+Shared/Helpers.lua
 
-Chat/Layout.lua
-Chat/Timestamps.lua
-Chat/ChitChat.lua
-Chat/Tabs.lua
-Chat/Input.lua
+ChatFrame/Clamp.lua
+ChatFrame/Layout.lua
+ChatFrame/Appearance.lua
+ChatFrame/Scrollbar.lua
+ChatFrame/Timestamps.lua
+ChatFrame/ChatFrame.lua
+
+Tabs/Tabs.lua
+Input/Input.lua
 
 Controls/Appearance.lua
 Controls/Layout.lua
-Controls/Setup.lua
+Controls/Controls.lua
 
 History/History.lua
 History/Copyframe.lua
+
 Init.lua

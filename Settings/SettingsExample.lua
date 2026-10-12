@@ -28,6 +28,10 @@ local CONTROL_BUTTON_COUNT = #CONTROL_TOOLTIPS;
 -- monk :D
 local SAMPLE_COLOUR = CreateColor(0.00, 1.00, 0.60);
 
+local function GetGradientSettings(prefix)
+	return core.GetGradientSettings(nil, prefix);
+end;
+
 local frame;
 local messages = {};
 local STATIC_MESSAGES = {
@@ -61,6 +65,21 @@ function example:CreateWindow()
     frame.messageArea = CreateFrame("Frame", nil, frame);
     frame.messageArea:SetSize(WINDOW_WIDTH - WINDOW_PADDING * 2, MESSAGE_AREA_HEIGHT);
     frame.messageArea:SetClipsChildren(true);
+    frame.scrollOffset = 0;
+    frame.scrollbar = CreateFrame("Slider", nil, frame);
+    frame.scrollbar:SetOrientation("VERTICAL");
+    frame.scrollbar:SetWidth(core.SCROLLBAR_WIDTH);
+    frame.scrollbar:SetFrameLevel(frame:GetFrameLevel() + 10);
+    frame.scrollbar:SetMinMaxValues(0, 0);
+    frame.scrollbar:SetValueStep(1);
+    frame.scrollbar:SetObeyStepOnDrag(true);
+    core.StyleScrollBar(frame.scrollbar);
+    frame.scrollbar:SetScript("OnValueChanged", function(_, value)
+        if frame.updatingScrollbar then return; end;
+        frame.scrollOffset = frame.maxScroll - math.floor(value + 0.5);
+        example:UpdateScrollbar();
+    end);
+    frame.scrollbar:Hide();
 
     frame.editModeBox = CreateFrame("Frame", nil, frame);
     frame.editModeBox:SetWidth(WINDOW_WIDTH - WINDOW_PADDING * 2);
@@ -125,7 +144,7 @@ local function RebuildChatBackground()
     frame.chatBackground = core.CreateGradientBackground(
         frame,
         frame.editModeBox,
-        "chat",
+        GetGradientSettings("chatBackground"),
         1,
         "BACKGROUND",
         -9
@@ -213,7 +232,13 @@ function example:UpdateTabs()
         background:SetFrameStrata(tab:GetFrameStrata());
         background:SetFrameLevel(math.max(area:GetFrameLevel(), tab:GetFrameLevel() - 1));
         background:SetAllPoints(tab);
-        core.CreateGradientBackground(background, background, "chatTab", 1, "ARTWORK");
+        core.CreateGradientBackground(
+            background,
+            background,
+            GetGradientSettings("chatTabBackground"),
+            1,
+            "ARTWORK"
+        );
         tab.ChitChatBackground = background;
     end;
 end;
@@ -228,7 +253,7 @@ local function RebuildMessageBackground(message)
     message.background = core.CreateGradientBackground(
         message.backgroundHolder,
         message,
-        "message",
+        GetGradientSettings("messageBackground"),
         1,
         "BACKGROUND",
         -8
@@ -308,7 +333,7 @@ local function UpdateSlide(_, delta)
                 sliding = true;
             end;
             message:SetPoint("BOTTOMLEFT", frame.messageArea, "BOTTOMLEFT", message.marginH,
-                message.currentY + message.marginV);
+                message.currentY + message.marginV - frame.scrollOffset);
         end;
     end;
     if not sliding then
@@ -316,20 +341,46 @@ local function UpdateSlide(_, delta)
     end;
 end;
 
+function example:UpdateScrollbar()
+    local config = ChitChatGlobalStorage;
+    local bar = frame.scrollbar;
+    local side = config.scrollbarSideStringifiedValue == "LEFT" and "LEFT" or "RIGHT";
+    bar:ClearAllPoints();
+    bar:SetPoint("TOP" .. side, frame.messageArea, "TOP" .. side);
+    bar:SetPoint("BOTTOM" .. side, frame.messageArea, "BOTTOM" .. side);
+    frame.maxScroll = math.max((frame.messageHeight or 0) - frame.messageArea:GetHeight(), 0);
+    frame.scrollOffset = config.showScrollbar and math.min(frame.scrollOffset, frame.maxScroll) or 0;
+    frame.updatingScrollbar = true;
+    bar:SetMinMaxValues(0, frame.maxScroll);
+    bar:SetValue(frame.maxScroll - frame.scrollOffset);
+    frame.updatingScrollbar = nil;
+    bar:EnableMouse(config.showScrollbar and frame.maxScroll > 0);
+    bar:SetMouseMotionEnabled(config.showScrollbar);
+    bar:SetShown(config.showScrollbar);
+    for _, message in ipairs(messages) do
+        message:SetPoint("BOTTOMLEFT", frame.messageArea, "BOTTOMLEFT", message.marginH,
+            message.currentY + message.marginV - frame.scrollOffset);
+    end;
+end;
+
 function example:LayoutMessages(snap)
     if not frame then return; end;
     local paddingH, paddingV, marginH, marginV = GetSpacing();
+    local config = ChitChatGlobalStorage;
     local areaWidth = frame.messageArea:GetWidth();
+    local scrollbarInset = config.showScrollbar and core.SCROLLBAR_WIDTH + 2 or 0;
+    local leftInset = config.scrollbarSideStringifiedValue == "LEFT" and scrollbarInset or 0;
+    areaWidth = math.max(areaWidth - scrollbarInset, 1);
     local y = 0;
     local startSliding = false;
     for i = #messages, 1, -1 do
         local message = messages[i];
-        message.text:SetWidth(areaWidth - 2 * (marginH + paddingH));
+        message.text:SetWidth(math.max(areaWidth - 2 * (marginH + paddingH), 1));
         message.text:ClearAllPoints();
         message.text:SetPoint("TOPLEFT", paddingH, -paddingV);
         local height = message.text:GetStringHeight() + 2 * paddingV;
-        message:SetSize(areaWidth - 2 * marginH, height);
-        message.marginH, message.marginV = marginH, marginV;
+        message:SetSize(math.max(areaWidth - 2 * marginH, 1), height);
+        message.marginH, message.marginV = marginH + leftInset, marginV;
         message.targetY = y;
         if snap then
             message.currentY = y;
@@ -345,10 +396,13 @@ function example:LayoutMessages(snap)
             startSliding = true;
         end;
         message:ClearAllPoints();
-        message:SetPoint("BOTTOMLEFT", frame.messageArea, "BOTTOMLEFT", marginH, message.currentY + marginV);
+        message:SetPoint("BOTTOMLEFT", frame.messageArea, "BOTTOMLEFT", message.marginH,
+            message.currentY + marginV - frame.scrollOffset);
         RebuildMessageBackground(message);
         y = y + height + 2 * marginV;
     end;
+    frame.messageHeight = y;
+    self:UpdateScrollbar();
     if startSliding then
         frame.messageArea:SetScript("OnUpdate", UpdateSlide);
     end;
@@ -471,12 +525,13 @@ function example:UpdateInput()
     input.background = core.CreateGradientBackground(
         input.backgroundHolder,
         input,
-        "chatInput",
+        GetGradientSettings("chatInputBackground"),
         1,
         "BACKGROUND",
         -1
     );
     input.background:SetOpacity(1);
+    self:LayoutMessages(true);
 end;
 
 function example:UpdateMessageAppearance()
@@ -540,10 +595,10 @@ function example:Update(settingInfo)
 
     if key == "alwaysShowControls" then
         self:UpdateControls();
-    elseif key:find("^control") or key == "controlsIdleAlpha" or key:find("^padding") then
+    elseif key:find("^control") or key == "controlsIdleAlpha" or key:find("^padding")
+        or key == "showScrollbar" or key == "scrollbarSide" then
         self:UpdateInput();
         self:UpdateControls(key:find("^controlBackground") ~= nil);
-        self:LayoutMessages(true);
     elseif key:find("^chatTab") or key == "tabHeight" then
         self:UpdateTabs();
         self:UpdateInput();

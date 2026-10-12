@@ -3,6 +3,9 @@ local _, core = ...;
 local GetConfig = core.GetConfig;
 
 local chatFrames = {};
+local activeSlides = {};
+local slideDriver = CreateFrame("Frame", "ChitChatMessageSlideDriver");
+local UpdateSlides;
 
 local function IsSecret(value)
 	return issecretvalue and issecretvalue(value);
@@ -60,6 +63,17 @@ local function HideChatFrameTextures(chatFrame)
 		local texture = _G[frameName .. textureName];
 		if texture then
 			texture:Hide();
+			if not texture.ChitChatHidden then
+				hooksecurefunc(texture, "Show", function()
+					texture:Hide();
+				end);
+				hooksecurefunc(texture, "SetShown", function(_, shown)
+					if shown then
+						texture:Hide();
+					end;
+				end);
+				texture.ChitChatHidden = true;
+			end;
 		end;
 	end;
 end;
@@ -194,63 +208,20 @@ local function CreateLineBackground(chatFrame, line)
 	alpha:SetSmoothing("OUT");
 	-- the container clips to the chat area, so backgrounds parented to it can't spill over the tabs or outside the window
 	local backgroundParent = chatFrame.FontStringContainer or line:GetParent() or chatFrame;
-	local surface;
-	if horizontalPadding > 0 or verticalPadding > 0 then
-		local texture = backgroundParent:CreateTexture(nil, "BACKGROUND", nil, -8);
-		texture:SetPoint("TOPLEFT", line, "TOPLEFT", -horizontalPadding, verticalPadding);
-		texture:SetPoint("BOTTOMRIGHT", line, "BOTTOMRIGHT", horizontalPadding, -verticalPadding);
-
-		surface = {
-			regions = { [texture] = true },
-		};
-		local lastOpacity;
-		function surface:SetOpacity(opacity)
-			if lastOpacity == opacity then
-				return;
-			end;
-			lastOpacity = opacity;
-
-			local colour = GetConfig(chatFrame, "messageBackgroundColour");
-			local effectiveAlpha = opacity * (colour.a or 1);
-			if GetConfig(chatFrame, "messageBackgroundUseGradient") then
-				local edgeAlpha = effectiveAlpha * (GetConfig(chatFrame, "messageBackgroundGradientEdgeOpacity") or 0.5);
-				local mainColourRatio = math.max(0,
-					math.min(GetConfig(chatFrame, "messageBackgroundGradientMainColourRatio") or 0, 1));
-				local mainColourSide = GetConfig(chatFrame, "messageBackgroundGradientMainColourSideStringifiedValue") == "right"
-					and "right" or "left";
-				local startAlpha = effectiveAlpha;
-				local endAlpha = effectiveAlpha;
-
-				if GetConfig(chatFrame, "messageBackgroundGradientOneSided") and mainColourRatio < 1 then
-					if mainColourSide == "right" then
-						startAlpha = edgeAlpha;
-					else
-						endAlpha = edgeAlpha;
-					end;
-				end;
-
-				texture:SetColorTexture(colour.r, colour.g, colour.b, 1);
-				texture:SetGradient(
-					"HORIZONTAL",
-					CreateColor(colour.r, colour.g, colour.b, startAlpha),
-					CreateColor(colour.r, colour.g, colour.b, endAlpha)
-				);
-			else
-				texture:SetColorTexture(colour.r, colour.g, colour.b, effectiveAlpha);
-			end;
-		end;
-	else
-		surface = core.CreateGradientBackground(
-			backgroundParent,
-			line,
-			"message",
-			0,
-			"BACKGROUND",
-			-7,
-			nil,
-			chatFrame
-		);
-	end;
+	local surface = core.CreateGradientBackground(
+		backgroundParent,
+		line,
+		core.GetGradientSettings(chatFrame, "messageBackground"),
+		0,
+		"BACKGROUND",
+		-7,
+		{
+			left = horizontalPadding,
+			right = horizontalPadding,
+			top = verticalPadding,
+			bottom = verticalPadding,
+		}
+	);
 
 	return {
 		surface = surface,
@@ -281,24 +252,11 @@ local function PlayEntrance(chatFrame, line, background)
 	SetLineVerticalOffset(line, background.slidePoints, background.slideDirection * GetEntranceDistance(chatFrame));
 	background.slideElapsed = 0;
 	background.slideMessageInfo = line.messageInfo;
+	activeSlides[line] = { chatFrame = chatFrame, background = background };
+	slideDriver:SetScript("OnUpdate", UpdateSlides);
 
 	background.lineAlphaSlide:Stop();
 	background.lineAlphaSlide:Play();
-end;
-
-local function GetLineAlpha(chatFrame, line)
-	local timestamp = GetMessageTimestamp(line);
-	if not timestamp
-		or not chatFrame.CalculateLineAlphaValueFromTimestamp then
-		return line:GetAlpha();
-	end;
-
-	local overrideTimestamp = chatFrame.overrideFadeTimestamp;
-	if not IsSecret(overrideTimestamp) and type(overrideTimestamp) == "number" then
-		timestamp = math.max(timestamp, overrideTimestamp);
-	end;
-
-	return chatFrame:CalculateLineAlphaValueFromTimestamp(GetTime(), timestamp);
 end;
 
 local function RefreshChatFrame(chatFrame, state)
@@ -311,6 +269,10 @@ local function RefreshChatFrame(chatFrame, state)
 	local newestRecentLine;
 	local newestRecentTimestamp;
 	local pendingTime = state.pendingMessageTime;
+	if pendingTime and GetTime() - pendingTime > GetConfig(chatFrame, "recentMessageWindow") then
+		state.pendingMessageTime = nil;
+		pendingTime = nil;
+	end;
 
 	local horizontalPadding, verticalPadding = GetMessagePadding(chatFrame);
 	local horizontalMargin, verticalMargin = GetMessageMargins(chatFrame);
@@ -333,9 +295,14 @@ local function RefreshChatFrame(chatFrame, state)
 				background = CreateLineBackground(chatFrame, line);
 				line.ChitChatBackground = background;
 				state.backgrounds[line] = background;
+				-- blizz already drives line fading so follow its alpha writes instead of polling
+				hooksecurefunc(line, "SetAlpha", function(_, opacity)
+					SetBackgroundOpacity(background, line.messageInfo and opacity or 0);
+				end);
 			end;
 
 			SetBackgroundShown(background, true);
+			SetBackgroundOpacity(background, line:GetAlpha());
 
 			local timestamp = pendingTime and GetMessageTimestamp(line);
 			if timestamp and timestamp >= pendingTime - GetConfig(chatFrame, "recentMessageWindow")
@@ -362,50 +329,30 @@ local function RefreshChatFrame(chatFrame, state)
 	end;
 end;
 
-local function UpdateBackgroundOpacity(_, elapsed)
-	for chatFrame, state in pairs(chatFrames) do
-		HideChatFrameTextures(chatFrame);
-		for _, line in ipairs(chatFrame.visibleLines or {}) do
-			local background = line.ChitChatBackground;
-			if background then
-				if line.messageInfo then
-					SetBackgroundOpacity(background, GetLineAlpha(chatFrame, line));
-				else
-					SetBackgroundOpacity(background, 0);
-				end;
-
-				if background.slideElapsed then
-					if line ~= chatFrame.visibleLines[1] then
-						RestoreLinePoints(line, background);
-						ClearSlideState(background);
-					elseif not line.messageInfo
-						or line.messageInfo ~= background.slideMessageInfo
-						or chatFrame:GetScrollOffset() ~= 0 then
-						RestoreLinePoints(line, background);
-						ClearSlideState(background);
-					else
-						local slideDuration = GetConfig(chatFrame, "slideDuration");
-						background.slideElapsed = math.min(background.slideElapsed + elapsed, slideDuration);
-						local progress = background.slideElapsed / slideDuration;
-						local remaining = 1 - progress;
-						SetLineVerticalOffset(
-							line,
-							background.slidePoints,
-							background.slideDirection * GetEntranceDistance(chatFrame) * remaining * remaining
-						);
-
-						if background.slideElapsed >= slideDuration then
-							RestoreLinePoints(line, background);
-							ClearSlideState(background);
-						end;
-					end;
-				end;
+UpdateSlides = function(_, elapsed)
+	for line, entry in pairs(activeSlides) do
+		local chatFrame, background = entry.chatFrame, entry.background;
+		if not chatFrame:IsShown() or line ~= chatFrame.visibleLines[1]
+			or not line.messageInfo or line.messageInfo ~= background.slideMessageInfo
+			or chatFrame:GetScrollOffset() ~= 0 then
+			RestoreLinePoints(line, background);
+			ClearSlideState(background);
+			activeSlides[line] = nil;
+		else
+			local slideDuration = GetConfig(chatFrame, "slideDuration");
+			background.slideElapsed = math.min(background.slideElapsed + elapsed, slideDuration);
+			local remaining = 1 - background.slideElapsed / slideDuration;
+			SetLineVerticalOffset(line, background.slidePoints,
+				background.slideDirection * GetEntranceDistance(chatFrame) * remaining * remaining);
+			if background.slideElapsed >= slideDuration then
+				RestoreLinePoints(line, background);
+				ClearSlideState(background);
+				activeSlides[line] = nil;
 			end;
 		end;
-
-		if state.pendingMessageTime and GetTime() - state.pendingMessageTime > GetConfig(chatFrame, "recentMessageWindow") then
-			state.pendingMessageTime = nil;
-		end;
+	end;
+	if not next(activeSlides) then
+		slideDriver:SetScript("OnUpdate", nil);
 	end;
 end;
 
@@ -423,59 +370,9 @@ local function SyncBackgroundArea(chatFrame)
 	end;
 end;
 
-local function GetMaxScroll(chatFrame)
-	return math.max(chatFrame:GetNumMessages() - chatFrame:GetNumVisibleLines() + 1, 0);
-end;
-
-local function CreateScrollBar(chatFrame)
-	local bar = CreateFrame("Slider", nil, chatFrame);
-	bar:SetOrientation("VERTICAL");
-	bar:SetWidth(core.SCROLLBAR_WIDTH);
-	bar:SetFrameLevel(chatFrame:GetFrameLevel() + 10);
-	bar:SetMinMaxValues(0, 0);
-	bar:SetValueStep(1);
-	bar:SetObeyStepOnDrag(true);
-	bar:EnableMouse(true);
-	local track = bar:CreateTexture(nil, "BACKGROUND");
-	track:SetAllPoints();
-	track:SetColorTexture(1, 1, 1, 0.15);
-	bar:SetThumbTexture("Interface\\Buttons\\WHITE8X8");
-	local thumb = bar:GetThumbTexture();
-	thumb:SetSize(core.SCROLLBAR_WIDTH, 24);
-	thumb:SetVertexColor(1, 1, 1, 1);
-	bar:SetScript("OnValueChanged", function(self, value)
-		if not self.ChitChatUpdating then
-			chatFrame:SetScrollOffset(math.max(GetMaxScroll(chatFrame) - math.floor(value + 0.5), 0));
-		end;
-	end);
-	chatFrame.ChitChatScrollBar = bar;
-	return bar;
-end;
-
-local function UpdateScrollBar(chatFrame)
-	if not GetConfig(chatFrame, "showScrollbar") then
-		return;
-	end;
-	local bar = chatFrame.ChitChatScrollBar or CreateScrollBar(chatFrame);
-	local anchor = core.GetLayoutAnchor(chatFrame);
-	local side = GetConfig(chatFrame, "scrollbarSideStringifiedValue") == "LEFT" and "LEFT" or "RIGHT";
-	if bar.ChitChatAnchor ~= anchor or bar.ChitChatSide ~= side then
-		bar.ChitChatAnchor, bar.ChitChatSide = anchor, side;
-		bar:ClearAllPoints();
-		bar:SetPoint("TOP" .. side, anchor, "TOP" .. side, 0, 0);
-		bar:SetPoint("BOTTOM" .. side, anchor, "BOTTOM" .. side, 0, 0);
-	end;
-	local maxScroll = GetMaxScroll(chatFrame);
-	bar.ChitChatUpdating = true;
-	bar:SetMinMaxValues(0, maxScroll);
-	bar:SetValue(maxScroll - chatFrame:GetScrollOffset());
-	bar.ChitChatUpdating = nil;
-	bar:SetShown(maxScroll > 0 and chatFrame:IsVisible());
-end;
-
 local function AttachToChatFrame(chatFrame)
 	if not chatFrame or chatFrames[chatFrame] or not chatFrame.AddOnDisplayRefreshedCallback then
-		return;
+		return chatFrames[chatFrame] ~= nil;
 	end;
 
 	HideChatFrameTextures(chatFrame);
@@ -483,8 +380,14 @@ local function AttachToChatFrame(chatFrame)
 	local backgroundArea = CreateFrame("Frame", nil, chatFrame);
 	chatFrame.ChitChatBackgroundArea = backgroundArea;
 	SyncBackgroundArea(chatFrame);
-	local chatBackground = core.CreateGradientBackground(chatFrame, backgroundArea, "chat", 1, "BACKGROUND", -8, nil,
-		chatFrame);
+	local chatBackground = core.CreateGradientBackground(
+		chatFrame,
+		backgroundArea,
+		core.GetGradientSettings(chatFrame, "chatBackground"),
+		1,
+		"BACKGROUND",
+		-8
+	);
 	backgroundArea:SetScript("OnSizeChanged", function()
 		chatBackground:SetOpacity(1);
 	end);
@@ -492,15 +395,6 @@ local function AttachToChatFrame(chatFrame)
 		SyncBackgroundArea(chatFrame);
 		chatBackground:SetOpacity(1);
 	end);
-
-	local scrollBar = chatFrame.ScrollBar;
-	if scrollBar then
-		scrollBar:SetAlpha(0);
-		scrollBar:Hide();
-		scrollBar:HookScript("OnShow", function(shownScrollBar)
-			shownScrollBar:Hide();
-		end);
-	end;
 
 	chatFrame:SetClipsChildren(true);
 	chatFrame:SetTimeVisible(GetConfig(chatFrame, "messageTimeVisible"));
@@ -513,6 +407,7 @@ local function AttachToChatFrame(chatFrame)
 
 	chatFrame:AddOnDisplayRefreshedCallback(function(refreshedFrame)
 		RefreshChatFrame(refreshedFrame, state);
+		SyncBackgroundArea(refreshedFrame);
 	end);
 
 	hooksecurefunc(chatFrame, "AddMessage", function()
@@ -520,6 +415,7 @@ local function AttachToChatFrame(chatFrame)
 	end);
 
 	RefreshChatFrame(chatFrame, state);
+	return true;
 end;
 
 function core:RefreshChatFrameTimings()
@@ -529,28 +425,12 @@ function core:RefreshChatFrameTimings()
 	end;
 end;
 
-function core.GetChatWindowCount()
-	return math.max(NUM_CHAT_WINDOWS or 0, CHAT_FRAMES and #CHAT_FRAMES or 0);
+function core:InitializeChatFrameAppearance(chatFrame)
+	return AttachToChatFrame(chatFrame);
 end;
 
--- cant not style newly created frames
-function core:AttachNewChatFrames()
-	for index = 1, core.GetChatWindowCount() do
-		AttachToChatFrame(_G["ChatFrame" .. index]);
-	end;
-end;
-
-local driver = CreateFrame("Frame", "ChitChatMessageFadeDriver");
-driver:SetScript("OnUpdate", function(frame, elapsed)
-	core:AttachNewChatFrames();
-	core.SyncMessageContainers();
+function core:RefreshChatFrameAppearance()
 	for chatFrame in pairs(chatFrames) do
 		SyncBackgroundArea(chatFrame);
-		UpdateScrollBar(chatFrame);
 	end;
-	UpdateBackgroundOpacity(frame, elapsed);
-end);
-
-function core:InitializeChitChat()
-	core:AttachNewChatFrames();
 end;

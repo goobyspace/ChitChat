@@ -22,10 +22,13 @@ local function HideEditBoxBorders(editBox, keepTextures)
 end;
 
 local function ApplyChatInputPoints(editBox)
+	local restoring = editBox.ChitChatRestoring;
+	editBox.ChitChatRestoring = true;
 	editBox:ClearAllPoints();
 	for _, p in ipairs(editBox.ChitChatPoints) do
 		editBox:SetPoint(p[1], editBox.ChitChatAnchor, p[2], 0, p[3]);
 	end;
+	editBox.ChitChatRestoring = restoring;
 end;
 
 -- blizz re-anchors the edit box to the raw chat frame (with its own x offsets), ignoring our padding
@@ -35,7 +38,22 @@ local function RestoreChatInputPoints(editBox)
 		return;
 	end;
 
-	if core.GetLayoutAnchor(editBox.ChitChatChatFrame) ~= editBox.ChitChatAnchor then
+	local chatFrame = editBox.ChitChatChatFrame;
+	local anchor = core.GetLayoutAnchor(chatFrame);
+	if anchor ~= editBox.ChitChatAnchor then
+		local tab = editBox.ChitChatTab;
+		if GetConfig(chatFrame, "chatBoxTop") and not GetConfig(chatFrame, "chatTabsAtBottom") and tab then
+			local tabEdge;
+			if GetConfig(chatFrame, "chatBoxAboveTabs") then
+				tabEdge = tab:GetTop();
+			else
+				tabEdge = tab:GetBottom();
+			end;
+			if not anchor:GetTop() or not tabEdge then
+				core.QueueChatRefresh();
+				return;
+			end;
+		end;
 		editBox.ChitChatRestoring = true;
 		core:PositionChatInput(editBox, editBox.ChitChatChatFrame, editBox.ChitChatTab);
 		editBox.ChitChatRestoring = nil;
@@ -110,12 +128,10 @@ function core:InitializeChatInput(editBox)
 	local background = core.CreateGradientBackground(
 		editBox,
 		editBox,
-		"chatInput",
+		core.GetGradientSettings(editBox.ChitChatChatFrame or editBox.chatFrame, "chatInputBackground"),
 		1,
 		"ARTWORK",
-		-1,
-		nil,
-		editBox.ChitChatChatFrame or editBox.chatFrame
+		-1
 	);
 	local backgroundTextures = background.regions;
 	editBox.ChitChatBackgroundTextures = backgroundTextures;
@@ -125,7 +141,7 @@ function core:InitializeChatInput(editBox)
 	HideEditBoxBorders(editBox, backgroundTextures);
 
 	local hoverState = {
-		isFocused = false,
+		isFocused = editBox:HasFocus(),
 		isMouseOver = false,
 	};
 	editBox:EnableMouse(true);
@@ -135,15 +151,60 @@ function core:InitializeChatInput(editBox)
 		RestoreChatInputPoints(editBox);
 		HideEditBoxBorders(editBox, backgroundTextures);
 	end);
-	editBox:HookScript("OnUpdate", function()
+	hooksecurefunc(editBox, "SetPoint", function()
+		RestoreChatInputPoints(editBox);
+	end);
+	hooksecurefunc(editBox, "SetAllPoints", function()
+		RestoreChatInputPoints(editBox);
+	end);
+	if editBox.SetFocusRegionsShown then
+		hooksecurefunc(editBox, "SetFocusRegionsShown", function(_, shown)
+			if shown then
+				editBox:SetFocusRegionsShown(false);
+			end;
+		end);
+	end;
+	if editBox.SetBackdropBorderColor then
+		hooksecurefunc(editBox, "SetBackdropBorderColor", function(_, r, g, b, a)
+			if r ~= 0 or g ~= 0 or b ~= 0 or a ~= 0 then
+				editBox:SetBackdropBorderColor(0, 0, 0, 0);
+			end;
+		end);
+	end;
+	for _, region in ipairs({ editBox:GetRegions() }) do
+		if region:GetObjectType() == "Texture" and not backgroundTextures[region] and region:GetWidth() > 3 then
+			hooksecurefunc(region, "Show", function()
+				region:Hide();
+			end);
+			hooksecurefunc(region, "SetShown", function(shownRegion, shown)
+				if shown then
+					shownRegion:Hide();
+				end;
+			end);
+		end;
+	end;
+
+	local inputEntry = { frame = editBox, alpha = 0 };
+	local FadeInput = core.CreateAlphaFader({ inputEntry });
+	local function UpdateInputAlpha()
+		local chatFrame = editBox.ChitChatChatFrame or editBox.chatFrame;
+		local isMouseOver = GetConfig(chatFrame, "chatBoxMouseover")
+			and editBox:IsShown() and (hoverState.isMouseOver or editBox:IsMouseOver());
+		FadeInput((hoverState.isFocused or isMouseOver) and 1 or 0,
+			GetConfig(chatFrame, "fadeDuration"));
+	end;
+	editBox.ChitChatRefreshInput = function()
 		RestoreChatInputPoints(editBox);
 		HideEditBoxBorders(editBox, backgroundTextures);
-	end);
+		UpdateInputAlpha();
+	end;
 	editBox:HookScript("OnEnter", function()
 		hoverState.isMouseOver = true;
+		UpdateInputAlpha();
 	end);
 	editBox:HookScript("OnLeave", function()
 		hoverState.isMouseOver = false;
+		UpdateInputAlpha();
 	end);
 	editBox:HookScript("OnMouseDown", function()
 		editBox:SetFocus();
@@ -151,26 +212,27 @@ function core:InitializeChatInput(editBox)
 	editBox:HookScript("OnEditFocusGained", function()
 		HideEditBoxBorders(editBox, backgroundTextures);
 		hoverState.isFocused = true;
+		UpdateInputAlpha();
 	end);
 	editBox:HookScript("OnEditFocusLost", function()
 		hoverState.isFocused = false;
+		UpdateInputAlpha();
 	end);
-	local inputAlpha = 0;
-	editBox:SetAlpha(inputAlpha);
+	editBox:HookScript("OnShow", UpdateInputAlpha);
+	editBox:HookScript("OnHide", function()
+		hoverState.isMouseOver = false;
+		UpdateInputAlpha();
+	end);
+	editBox:SetAlpha(0);
 	editBox:Show();
 
-	local inputFadeDriver = CreateFrame("Frame");
-	inputFadeDriver:SetScript("OnUpdate", function(_, elapsed)
-		local chatFrame = editBox.ChitChatChatFrame or editBox.chatFrame;
-		local isMouseOver = GetConfig(chatFrame, "chatBoxMouseover")
-			and (hoverState.isMouseOver or editBox:IsMouseOver());
-		local targetAlpha = (hoverState.isFocused or isMouseOver) and 1 or 0;
-		local step = math.min(elapsed / GetConfig(chatFrame, "fadeDuration"), 1);
-		inputAlpha = inputAlpha + (targetAlpha - inputAlpha) * step;
-		if math.abs(inputAlpha - targetAlpha) < 0.01 then
-			inputAlpha = targetAlpha;
+	-- blizz resets the alpha when switching tabs, the old per-frame driver used to hide that
+	hooksecurefunc(editBox, "SetAlpha", function(_, alpha)
+		if alpha ~= inputEntry.alpha then
+			editBox:SetAlpha(inputEntry.alpha);
 		end;
-		editBox:SetAlpha(inputAlpha);
 	end);
+	core.WatchChatLayout(editBox);
+	UpdateInputAlpha();
 	editBox.ChitChatInputInitialized = true;
 end;

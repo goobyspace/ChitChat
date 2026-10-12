@@ -50,6 +50,9 @@ local function CreateChangedCallback(setting)
         if setting.onChange and not deferOnChange then
             setting.onChange(setting);
         end;
+        if core.QueueChatRefresh then
+            core.QueueChatRefresh();
+        end;
         if setting.reload ~= false then
             AddReloadButton();
             return;

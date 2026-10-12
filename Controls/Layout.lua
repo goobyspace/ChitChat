@@ -20,6 +20,24 @@ function core.GetControlPosition(chatFrame)
 	return position;
 end;
 
+function core.GetControlInsets(chatFrame, tabTopOffset)
+	if not GetConfig(chatFrame, "controlsOutside") then
+		return 0, 0, 0, 0;
+	end;
+
+	local position = core.GetControlPosition(chatFrame);
+	local size = GetConfig(chatFrame, "controlSize") + 2;
+	if GetConfig(chatFrame, "controlsVertical") then
+		if position.right then
+			return 0, size, 0, 0;
+		end;
+		return size, 0, 0, 0;
+	elseif position.bottom then
+		return 0, 0, 0, size;
+	end;
+	return 0, 0, size + tabTopOffset, 0;
+end;
+
 function core.GetControlStep(chatFrame)
 	return GetConfig(chatFrame, "controlSize") + GetConfig(chatFrame, "controlSpacing")
 		+ 2 * core.CONTROL_BACKGROUND_INSET;
@@ -70,7 +88,11 @@ function core.PositionControlButton(button, row, index, position, chatFrame)
 		button:SetPoint(point, row, point, x, y);
 	end;
 	if not button.ChitChatBackground then
-		button.ChitChatBackground = core.ApplyControlButtonIcon(button, button.ChitChatIcon, chatFrame);
+		button.ChitChatBackground = core.ApplyControlButtonIcon(
+			button,
+			button.ChitChatIcon,
+			core.GetGradientSettings(chatFrame, "controlBackground")
+		);
 	end;
 	local background = button.ChitChatBackground;
 	if background:GetFrameStrata() ~= frameStrata then
@@ -177,4 +199,70 @@ function core.SetControlLayering(row, chatFrame, editBox)
 	end;
 	row:SetToplevel(true);
 	row:SetFrameLevel(frameLevel + 5);
+end;
+
+function core.CreateSelectedChatFramePositioner(row, chatFrame, buttons, mainTab)
+	local activeChatFrame;
+	local activeEditBox;
+	local activeEditBoxTabOffset;
+
+	return function()
+		local selectedChatFrame = SELECTED_CHAT_FRAME or chatFrame;
+		local selectedEditBox = selectedChatFrame.editBox;
+		core:InitializeChatInput(selectedEditBox);
+		local selectedTab;
+		local selectedFrameIndex = selectedChatFrame:GetID();
+		if selectedFrameIndex then
+			selectedTab = _G["ChatFrame" .. selectedFrameIndex .. "Tab"];
+		end;
+		selectedTab = selectedTab or mainTab;
+
+		local editBoxTabOffset;
+		if GetConfig(selectedChatFrame, "chatBoxTop") and selectedTab
+			and not GetConfig(selectedChatFrame, "chatTabsAtBottom") then
+			local chatTop = core.GetLayoutAnchor(selectedChatFrame):GetTop();
+			local tabEdge = GetConfig(selectedChatFrame, "chatBoxAboveTabs") and selectedTab:GetTop()
+				or selectedTab:GetBottom();
+			-- bounds are unavailable while frames are mid-drag/undock
+			if not chatTop or not tabEdge then
+				return activeChatFrame or selectedChatFrame;
+			end;
+			editBoxTabOffset = tabEdge - chatTop;
+		end;
+
+		if selectedChatFrame == activeChatFrame and selectedEditBox == activeEditBox and not core.controlsDirty then
+			if core.IsCombatLogFrame(selectedChatFrame) and selectedEditBox and not selectedEditBox:IsShown() then
+				selectedEditBox:Show();
+			end;
+			local editBoxTabOffsetChanged = editBoxTabOffset ~= activeEditBoxTabOffset;
+			if editBoxTabOffset and activeEditBoxTabOffset then
+				editBoxTabOffsetChanged = math.abs(editBoxTabOffset - activeEditBoxTabOffset) > 0.01;
+			end;
+			if editBoxTabOffsetChanged then
+				core:PositionChatInput(selectedEditBox, selectedChatFrame, selectedTab);
+				activeEditBoxTabOffset = editBoxTabOffset;
+			end;
+			return selectedChatFrame;
+		end;
+
+		core:PositionChatInput(selectedEditBox, selectedChatFrame, selectedTab);
+		core.controlsDirty = nil;
+		activeEditBoxTabOffset = editBoxTabOffset;
+		core.PositionControlRow(
+			row,
+			selectedChatFrame,
+			#buttons,
+			core.GetControlPosition(selectedChatFrame),
+			selectedTab,
+			core.IsCombatLogFrame(selectedChatFrame)
+		);
+		core.SetControlLayering(row, selectedChatFrame, selectedEditBox);
+
+		if core.IsCombatLogFrame(selectedChatFrame) and selectedEditBox then
+			selectedEditBox:Show();
+		end;
+		activeChatFrame = selectedChatFrame;
+		activeEditBox = selectedEditBox;
+		return selectedChatFrame;
+	end;
 end;

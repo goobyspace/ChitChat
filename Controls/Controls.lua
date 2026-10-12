@@ -6,16 +6,6 @@ local _, core = ...;
 local GetConfig = core.GetConfig;
 local controlIconPath = "Interface\\AddOns\\ChitChat\\Assets\\";
 
-local function IsCombatLogFrame(chatFrame)
-	if not chatFrame then
-		return false;
-	end;
-	if type(IsCombatLog) == "function" then
-		return IsCombatLog(chatFrame);
-	end;
-	return chatFrame == _G["ChatFrame2"];
-end;
-
 local function AddTrackedFrame(trackedFrames, frame, background)
 	if frame then
 		frame:SetAlpha(1);
@@ -156,90 +146,6 @@ local function AreControlButtonsHovered(row, buttons)
 	return false;
 end;
 
-local function UpdateTrackedFrameAlpha(trackedFrames, targetAlpha, step, updateChatTab)
-	for _, entry in ipairs(trackedFrames) do
-		if updateChatTab then
-			core:UpdateChatTab(entry);
-		end;
-		entry.alpha = entry.alpha + (targetAlpha - entry.alpha) * step;
-		entry.frame:SetAlpha(entry.alpha);
-		if entry.background then
-			entry.background:SetAlpha(entry.alpha);
-		end;
-		if not updateChatTab then
-			for _, texture in ipairs(entry.frame.ChitChatIconTextures or {}) do
-				texture:SetAlpha(entry.alpha);
-			end;
-		end;
-	end;
-end;
-
-local function CreateSelectedChatFramePositioner(row, chatFrame, buttons, mainTab)
-	local activeChatFrame;
-	local activeEditBox;
-	local activeEditBoxTabOffset;
-
-	return function()
-		local selectedChatFrame = SELECTED_CHAT_FRAME or chatFrame;
-		local selectedEditBox = selectedChatFrame.editBox;
-		core:InitializeChatInput(selectedEditBox);
-		local selectedTab;
-		local selectedFrameIndex = selectedChatFrame:GetID();
-		if selectedFrameIndex then
-			selectedTab = _G["ChatFrame" .. selectedFrameIndex .. "Tab"];
-		end;
-		selectedTab = selectedTab or mainTab;
-
-		local editBoxTabOffset;
-		if GetConfig(selectedChatFrame, "chatBoxTop") and selectedTab
-			and not GetConfig(selectedChatFrame, "chatTabsAtBottom") then
-			local chatTop = core.GetLayoutAnchor(selectedChatFrame):GetTop();
-			local tabEdge = GetConfig(selectedChatFrame, "chatBoxAboveTabs") and selectedTab:GetTop()
-				or selectedTab:GetBottom();
-			-- bounds are unavailable while frames are mid-drag/undock
-			if not chatTop or not tabEdge then
-				return activeChatFrame or selectedChatFrame;
-			end;
-			editBoxTabOffset = tabEdge - chatTop;
-		end;
-
-		if selectedChatFrame == activeChatFrame and selectedEditBox == activeEditBox and not core.controlsDirty then
-			if IsCombatLogFrame(selectedChatFrame) and selectedEditBox and not selectedEditBox:IsShown() then
-				selectedEditBox:Show();
-			end;
-			local editBoxTabOffsetChanged = editBoxTabOffset ~= activeEditBoxTabOffset;
-			if editBoxTabOffset and activeEditBoxTabOffset then
-				editBoxTabOffsetChanged = math.abs(editBoxTabOffset - activeEditBoxTabOffset) > 0.01;
-			end;
-			if editBoxTabOffsetChanged then
-				core:PositionChatInput(selectedEditBox, selectedChatFrame, selectedTab);
-				activeEditBoxTabOffset = editBoxTabOffset;
-			end;
-			return selectedChatFrame;
-		end;
-
-		core:PositionChatInput(selectedEditBox, selectedChatFrame, selectedTab);
-		core.controlsDirty = nil;
-		activeEditBoxTabOffset = editBoxTabOffset;
-		core.PositionControlRow(
-			row,
-			selectedChatFrame,
-			#buttons,
-			core.GetControlPosition(selectedChatFrame),
-			selectedTab,
-			IsCombatLogFrame(selectedChatFrame)
-		);
-		core.SetControlLayering(row, selectedChatFrame, selectedEditBox);
-
-		if IsCombatLogFrame(selectedChatFrame) and selectedEditBox then
-			selectedEditBox:Show();
-		end;
-		activeChatFrame = selectedChatFrame;
-		activeEditBox = selectedEditBox;
-		return selectedChatFrame;
-	end;
-end;
-
 -- replaces blizz's dock overflow button with a control-styled one placed after the rightmost tab.
 -- the original stays shown (invisible, no mouse) so the dock scroll frame keeps reserving room for it.
 local function CreateOverflowControl(row, chatFrame)
@@ -263,8 +169,13 @@ local function CreateOverflowControl(row, chatFrame)
 	);
 	button:SetScript("OnEnter", nil);
 	button:SetScript("OnLeave", nil);
+	core.WatchChatHover(button);
 	button:SetSize(GetConfig(chatFrame, "controlSize"), GetConfig(chatFrame, "controlSize"));
-	button.ChitChatBackground = core.ApplyControlButtonIcon(button, button.ChitChatIcon, chatFrame);
+	button.ChitChatBackground = core.ApplyControlButtonIcon(
+		button,
+		button.ChitChatIcon,
+		core.GetGradientSettings(chatFrame, "controlBackground")
+	);
 	original:EnableMouse(false);
 	for _, texture in ipairs({ original:GetRegions() }) do
 		texture:SetAlpha(0);
@@ -347,12 +258,12 @@ local function CreateControls(chatFrame)
 		#buttons,
 		controlPosition,
 		mainTab,
-		IsCombatLogFrame(chatFrame)
+		core.IsCombatLogFrame(chatFrame)
 	);
 	core.SetControlLayering(row, chatFrame, chatFrame.editBox);
 
 	local PositionForSelectedChatFrame =
-		CreateSelectedChatFramePositioner(row, chatFrame, buttons, mainTab);
+		core.CreateSelectedChatFramePositioner(row, chatFrame, buttons, mainTab);
 
 	PositionForSelectedChatFrame();
 
@@ -362,7 +273,6 @@ local function CreateControls(chatFrame)
 	end;
 
 	local state = {
-		trackedFrames = core:InitializeChatTabs(),
 		controlFrames = {},
 		overflowFrames = {},
 	};
@@ -375,10 +285,13 @@ local function CreateControls(chatFrame)
 	end;
 	row:SetAlpha(1);
 
-	local driver = CreateFrame("Frame", "ChitChatControlsFadeDriver");
-	driver:SetScript("OnUpdate", function(_, elapsed)
-		core:SyncChatTabs(state.trackedFrames);
-		local selectedChatFrame = PositionForSelectedChatFrame();
+	local FadeControls = core.CreateAlphaFader(state.controlFrames);
+	local FadeOverflow = core.CreateAlphaFader(state.overflowFrames);
+	local selectedChatFrame = SELECTED_CHAT_FRAME or chatFrame;
+
+	function core:RefreshControls()
+		core.controlsDirty = true;
+		selectedChatFrame = PositionForSelectedChatFrame();
 		core.EnforceTabAnchor(chatFrame);
 		for index, button in ipairs(buttons) do
 			core.PositionControlButton(button, row, index, core.GetControlPosition(selectedChatFrame), selectedChatFrame);
@@ -387,33 +300,45 @@ local function CreateControls(chatFrame)
 			UpdateOverflow();
 			overflowButton.ChitChatBackground:SetShown(overflowButton:IsShown());
 		end;
-		local hovered = IsAnyTrackedFrameHovered(state.trackedFrames)
-			or IsAnyTrackedFrameHovered(state.overflowFrames);
-		if selectedChatFrame.IsMouseOver and selectedChatFrame:IsMouseOver() then
-			hovered = true;
+		for index = 1, core.GetChatWindowCount() do
+			local frame = _G["ChatFrame" .. index];
+			local editBox = frame and frame.editBox;
+			if editBox and editBox.ChitChatRefreshInput then
+				editBox.ChitChatRefreshInput();
+			end;
 		end;
+	end;
 
-		local alwaysShowChatTabs = GetConfig(selectedChatFrame, "alwaysShowChatTabs");
-		local tabTargetAlpha = (alwaysShowChatTabs or hovered or IsCombatLogFrame(selectedChatFrame))
-			and 1 or (GetConfig(selectedChatFrame, "chatTabsIdleAlpha") or 0);
+	function core:RefreshControlAlpha()
 		local controlsHovered = AreControlButtonsHovered(row, buttons);
 		local alwaysShowControls = GetConfig(selectedChatFrame, "alwaysShowControls");
 		local controlTargetAlpha = (alwaysShowControls or controlsHovered) and 1
 			or (GetConfig(selectedChatFrame, "controlsIdleAlpha") or 0);
 		local fadeDuration = GetConfig(selectedChatFrame, "fadeDuration");
-		local tabStep = alwaysShowChatTabs and 1 or math.min(elapsed / fadeDuration, 1);
-		local controlStep = alwaysShowControls and 1 or math.min(elapsed / fadeDuration, 1);
-		UpdateTrackedFrameAlpha(state.trackedFrames, tabTargetAlpha, tabStep, true);
-		UpdateTrackedFrameAlpha(state.overflowFrames, tabTargetAlpha, tabStep, false);
-		UpdateTrackedFrameAlpha(state.controlFrames, controlTargetAlpha, controlStep, false);
-	end);
+		FadeControls(controlTargetAlpha, alwaysShowControls and 0 or fadeDuration);
+
+		local alwaysShowChatTabs = GetConfig(selectedChatFrame, "alwaysShowChatTabs");
+		local tabsHovered = core:AreChatTabsHovered() or IsAnyTrackedFrameHovered(state.overflowFrames)
+			or (selectedChatFrame.IsMouseOver and selectedChatFrame:IsMouseOver());
+		local tabTargetAlpha = (alwaysShowChatTabs or tabsHovered or core.IsCombatLogFrame(selectedChatFrame))
+			and 1 or (GetConfig(selectedChatFrame, "chatTabsIdleAlpha") or 0);
+		FadeOverflow(tabTargetAlpha, alwaysShowChatTabs and 0 or fadeDuration);
+	end;
+
+	core.WatchChatLayout(row);
+	for _, button in ipairs(buttons) do
+		core.WatchChatHover(button);
+	end;
+	core:RefreshControls();
+	core:RefreshControlAlpha();
 end;
 
-local loader = CreateFrame("Frame", "ChitChatControlsLoader");
-loader:RegisterEvent("PLAYER_ENTERING_WORLD");
-loader:SetScript("OnEvent", function()
-	local chatFrame = _G["ChatFrame1"];
-	core.PositionChatFrameForPadding(chatFrame);
+function core:InitializeControls(chatFrame)
+	chatFrame = chatFrame or _G["ChatFrame1"];
+	if not chatFrame or chatFrame.ChitChatControlsInitialized then
+		return;
+	end;
+	core:InitializeChatFrameLayout(chatFrame, true);
 	CreateControls(chatFrame);
-	loader:UnregisterEvent("PLAYER_ENTERING_WORLD");
-end);
+	chatFrame.ChitChatControlsInitialized = true;
+end;

@@ -190,18 +190,14 @@ function core:RefreshChatTimestamps()
 	end;
 end;
 
-function core:InitializeTimestamps()
-	if registered then
-		return;
+function core:InitializeTimestamps(chatFrame)
+	if not registered then
+		if type(ChatFrameMixin) ~= "table" or type(ChatFrameMixin.AddMessage) ~= "function" then
+			error("ChitChat: ChatFrameMixin.AddMessage is unavailable.");
+		end;
+		timestampedAddMessage = WrapAddMessage(ChatFrameMixin.AddMessage);
+		ChatFrameMixin.AddMessage = timestampedAddMessage;
+		registered = true;
 	end;
-
-	if type(ChatFrameMixin) ~= "table" or type(ChatFrameMixin.AddMessage) ~= "function" then
-		error("ChitChat: ChatFrameMixin.AddMessage is unavailable.");
-	end;
-	timestampedAddMessage = WrapAddMessage(ChatFrameMixin.AddMessage);
-	ChatFrameMixin.AddMessage = timestampedAddMessage;
-	for index = 1, core.GetChatWindowCount() do
-		AttachTimestampToChatFrame(_G["ChatFrame" .. index]);
-	end;
-	registered = true;
+	AttachTimestampToChatFrame(chatFrame);
 end;

@@ -5,17 +5,9 @@ local _, core = ...;
 
 local unnamedBackgroundIndex = 0;
 
-function core.HideDefaultTextures(frame, keepTexture)
-	for _, region in ipairs({ frame:GetRegions() }) do
-		if region ~= keepTexture and region:GetObjectType() == "Texture" then
-			region:Hide();
-		end;
-	end;
-end;
-
 core.CONTROL_BACKGROUND_INSET = 2;
 
-function core.CreateControlBackground(frame, inset, nameSuffix, chatFrame)
+function core.CreateControlBackground(frame, inset, nameSuffix, gradientSettings)
 	local backgroundParent = frame:GetParent() or UIParent;
 	local frameName = frame:GetName();
 	if not frameName then
@@ -31,7 +23,7 @@ function core.CreateControlBackground(frame, inset, nameSuffix, chatFrame)
 	background:SetFrameLevel(math.max(backgroundParent:GetFrameLevel(), frame:GetFrameLevel() - 1));
 	background:SetPoint("TOPLEFT", frame, "TOPLEFT", -inset, inset);
 	background:SetPoint("BOTTOMRIGHT", frame, "BOTTOMRIGHT", inset, -inset);
-	core.CreateGradientBackground(background, background, "control", 1, "BACKGROUND", nil, nil, chatFrame);
+	core.CreateGradientBackground(background, background, gradientSettings, 1, "BACKGROUND");
 	return background;
 end;
 
@@ -49,6 +41,7 @@ function core.AnimateControlButtonIcon(button, textures)
 	local current = 0;
 	local hovered = false;
 	local pressed = false;
+	local driver = CreateFrame("Frame");
 
 	local function Apply(inset)
 		for _, texture in ipairs(state.textures) do
@@ -65,30 +58,8 @@ function core.AnimateControlButtonIcon(button, textures)
 		return hovered and HOVER_INSET or 0;
 	end;
 
-	button:HookScript("OnEnter", function()
-		hovered = true;
-	end);
-	button:HookScript("OnLeave", function()
-		hovered = false;
-		pressed = false;
-	end);
-	button:HookScript("OnMouseDown", function()
-		pressed = true;
-	end);
-	button:HookScript("OnMouseUp", function()
-		pressed = false;
-	end);
-	button:HookScript("OnHide", function()
-		hovered = false;
-		pressed = false;
-		current = 0;
-		Apply(0);
-	end);
-	button:HookScript("OnUpdate", function(_, elapsed)
+	local function Update(_, elapsed)
 		local target = Target();
-		if current == target then
-			return;
-		end;
 		local step = INSET_SPEED * elapsed;
 		if math.abs(target - current) <= step then
 			current = target;
@@ -96,10 +67,38 @@ function core.AnimateControlButtonIcon(button, textures)
 			current = current + (target > current and step or -step);
 		end;
 		Apply(current);
+		if current == target then
+			driver:SetScript("OnUpdate", nil);
+		end;
+	end;
+
+	button:HookScript("OnEnter", function()
+		hovered = true;
+		driver:SetScript("OnUpdate", Update);
+	end);
+	button:HookScript("OnLeave", function()
+		hovered = false;
+		pressed = false;
+		driver:SetScript("OnUpdate", Update);
+	end);
+	button:HookScript("OnMouseDown", function()
+		pressed = true;
+		driver:SetScript("OnUpdate", Update);
+	end);
+	button:HookScript("OnMouseUp", function()
+		pressed = false;
+		driver:SetScript("OnUpdate", Update);
+	end);
+	button:HookScript("OnHide", function()
+		hovered = false;
+		pressed = false;
+		current = 0;
+		driver:SetScript("OnUpdate", nil);
+		Apply(0);
 	end);
 end;
 
-function core.ApplyControlButtonIcon(button, iconTexture, chatFrame)
+function core.ApplyControlButtonIcon(button, iconTexture, gradientSettings)
 	if not button then
 		return;
 	end;
@@ -142,5 +141,5 @@ function core.ApplyControlButtonIcon(button, iconTexture, chatFrame)
 	end;
 	button.ChitChatIconTextures = iconTextures;
 	core.AnimateControlButtonIcon(button, iconTextures);
-	return core.CreateControlBackground(button, core.CONTROL_BACKGROUND_INSET, "Background", chatFrame);
+	return core.CreateControlBackground(button, core.CONTROL_BACKGROUND_INSET, "Background", gradientSettings);
 end;
