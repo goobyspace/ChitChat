@@ -123,6 +123,9 @@ function core:RefreshChatTabs()
 	end;
 end;
 
+core.RegisterLayoutRefresh(core.RefreshChatTabs);
+core.RegisterHoverRefresh(core.RefreshChatTabAlpha);
+
 function core:InitializeChatTabs()
 	core:RefreshChatTabs();
 	core.QueueChatHoverRefresh();

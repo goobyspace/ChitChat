@@ -149,29 +149,25 @@ local function HookCombatLogBar()
 	bar:HookScript("OnShow", core.PositionCombatLogBar);
 	bar:HookScript("OnHide", core.PositionCombatLogBar);
 	for _, name in ipairs({ "FCF_Tab_OnClick", "FCF_SelectDockFrame", "FCF_DockUpdate", "FCF_SetTabPosition" }) do
-		if type(_G[name]) == "function" then
-			hooksecurefunc(name, core.PositionCombatLogBar);
-		end;
+		core.HookGlobal(name, core.PositionCombatLogBar);
 	end;
 	hooksecurefunc(bar, "SetPoint", core.PositionCombatLogBar);
 end;
 
 local function WaitForTabGeometry(chatFrame, tab)
-	if chatFrame.ChitChatWaitingForGeometry then
-		return;
-	end;
 	chatFrame.ChitChatWaitingForGeometry = true;
-
-	local function OnSizeChanged()
-		if not chatFrame.ChitChatWaitingForGeometry or not GetTabMetrics(chatFrame, tab) then
-			return;
+	if not chatFrame.ChitChatGeometryCallback then
+		chatFrame.ChitChatGeometryCallback = function()
+			if not chatFrame.ChitChatWaitingForGeometry or not GetTabMetrics(chatFrame, tab) then
+				return;
+			end;
+			chatFrame.ChitChatWaitingForGeometry = nil;
+			core.PositionChatFrameForPadding(chatFrame);
 		end;
-		chatFrame.ChitChatWaitingForGeometry = nil;
-		core.PositionChatFrameForPadding(chatFrame);
 	end;
-	chatFrame:HookScript("OnSizeChanged", OnSizeChanged);
+	core.RegisterSizeChanged(chatFrame, chatFrame.ChitChatGeometryCallback);
 	if tab then
-		tab:HookScript("OnSizeChanged", OnSizeChanged);
+		core.RegisterSizeChanged(tab, chatFrame.ChitChatGeometryCallback);
 	end;
 end;
 
@@ -348,3 +344,11 @@ function core.EnforceTabAnchor(chatFrame)
 	AlignDockToInner(chatFrame);
 	AlignDockScrollFrame(tab);
 end;
+
+core.RegisterLayoutRefresh(core.SyncMessageContainers, 10);
+core.RegisterLayoutRefresh(function()
+	local main = _G["ChatFrame1"];
+	if main and main.ChitChatLayoutInitialized then
+		core.EnforceTabAnchor(main);
+	end;
+end);

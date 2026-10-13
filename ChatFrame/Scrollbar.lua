@@ -221,3 +221,6 @@ function core:RefreshScrollBarAlpha()
 		UpdateScrollBarAlpha(chatFrame, state);
 	end;
 end;
+
+core.RegisterLayoutRefresh(core.RefreshScrollBar);
+core.RegisterHoverRefresh(core.RefreshScrollBarAlpha);

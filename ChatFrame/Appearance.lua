@@ -391,7 +391,7 @@ local function AttachToChatFrame(chatFrame)
 	backgroundArea:SetScript("OnSizeChanged", function()
 		chatBackground:SetOpacity(1);
 	end);
-	chatFrame:HookScript("OnSizeChanged", function()
+	core.RegisterSizeChanged(chatFrame, function()
 		SyncBackgroundArea(chatFrame);
 		chatBackground:SetOpacity(1);
 	end);
@@ -434,3 +434,5 @@ function core:RefreshChatFrameAppearance()
 		SyncBackgroundArea(chatFrame);
 	end;
 end;
+
+core.RegisterLayoutRefresh(core.RefreshChatFrameAppearance);

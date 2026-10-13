@@ -73,6 +73,55 @@ function core.GetChatWindowCount()
 	return math.max(NUM_CHAT_WINDOWS or 0, CHAT_FRAMES and #CHAT_FRAMES or 0);
 end;
 
+core.hoverRefreshes = {};
+core.layoutRefreshes = {};
+
+-- callbacks get core passed in so colon functions work as is
+function core.RegisterHoverRefresh(fn)
+	core.hoverRefreshes[#core.hoverRefreshes + 1] = fn;
+end;
+
+function core.RegisterLayoutRefresh(fn)
+	core.layoutRefreshes[#core.layoutRefreshes + 1] = fn;
+end;
+
+local globalHooks = {};
+function core.HookGlobal(name, fn)
+	if type(_G[name]) ~= "function" then
+		return;
+	end;
+	local callbacks = globalHooks[name];
+	if not callbacks then
+		callbacks = {};
+		globalHooks[name] = callbacks;
+		hooksecurefunc(name, function(...)
+			for _, callback in ipairs(callbacks) do
+				callback(...);
+			end;
+		end);
+	end;
+	callbacks[#callbacks + 1] = fn;
+end;
+
+function core.RegisterSizeChanged(frame, fn)
+	local callbacks = frame.ChitChatSizeCallbacks;
+	if not callbacks then
+		callbacks = {};
+		frame.ChitChatSizeCallbacks = callbacks;
+		frame:HookScript("OnSizeChanged", function(...)
+			for _, callback in ipairs(callbacks) do
+				callback(...);
+			end;
+		end);
+	end;
+	for _, existing in ipairs(callbacks) do
+		if existing == fn then
+			return;
+		end;
+	end;
+	callbacks[#callbacks + 1] = fn;
+end;
+
 function core.WatchChatHover(frame)
 	if not frame or frame.ChitChatHoverWatched then
 		return;
@@ -101,11 +150,14 @@ function core.WatchChatLayout(frame)
 		return;
 	end;
 	frame.ChitChatLayoutWatched = true;
-	for _, script in ipairs({ "OnShow", "OnHide", "OnSizeChanged" }) do
+	for _, script in ipairs({ "OnShow", "OnHide" }) do
 		frame:HookScript(script, function()
 			core.QueueChatRefresh();
 		end);
 	end;
+	core.RegisterSizeChanged(frame, function()
+		core.QueueChatRefresh();
+	end);
 	for _, method in ipairs({ "SetPoint", "SetAllPoints", "SetParent", "SetFrameStrata", "SetFrameLevel" }) do
 		hooksecurefunc(frame, method, function()
 			core.QueueChatRefresh();

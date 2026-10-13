@@ -18,6 +18,7 @@ function core:InitEventHandler(event, name)
         return;
     end;
 
+    -- this is because the chat frame isnt always finished by PLAYER_LOGIN & ADDON_LOADED
     if event == "PLAYER_ENTERING_WORLD" then
         self:InitializeReactiveChat();
         self:AttachNewChatFrames();

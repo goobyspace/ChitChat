@@ -76,12 +76,8 @@ function core.QueueChatHoverRefresh()
 	hoverQueued = true;
 	C_Timer.After(0, function()
 		hoverQueued = nil;
-		core:RefreshChatTabAlpha();
-		if core.RefreshControlAlpha then
-			core:RefreshControlAlpha();
-		end;
-		if core.RefreshScrollBarAlpha then
-			core:RefreshScrollBarAlpha();
+		for _, refresh in ipairs(core.hoverRefreshes) do
+			refresh(core);
 		end;
 	end);
 end;
@@ -97,18 +93,8 @@ function core.QueueChatRefresh()
 		refreshing = true;
 		core.WatchChatLayout(_G["CombatLogQuickButtonFrame_Custom"]);
 		core:AttachNewChatFrames();
-		core.SyncMessageContainers();
-		local main = _G["ChatFrame1"];
-		if main and main.ChitChatLayoutInitialized then
-			core.EnforceTabAnchor(main);
-		end;
-		core:RefreshChatTabs();
-		if core.RefreshControls then
-			core:RefreshControls();
-		end;
-		core:RefreshChatFrameAppearance();
-		if core.RefreshScrollBar then
-			core:RefreshScrollBar();
+		for _, refresh in ipairs(core.layoutRefreshes) do
+			refresh(core);
 		end;
 		refreshing = nil;
 		core.QueueChatHoverRefresh();
@@ -130,17 +116,13 @@ function core:InitializeReactiveChat()
 		"FCF_SetChatWindowFontSize", "FCFTab_UpdateColors", "FCF_SetButtonSide",
 		"FCF_StopDragging", "FCFTab_OnDragStop",
 	}) do
-		if type(_G[name]) == "function" then
-			hooksecurefunc(name, core.QueueChatRefresh);
-		end;
+		core.HookGlobal(name, core.QueueChatRefresh);
 	end;
 	for _, name in ipairs({ "FCF_FadeInChatFrame", "FCF_FadeOutChatFrame", "FCFTab_UpdateAlpha" }) do
-		if type(_G[name]) == "function" then
-			hooksecurefunc(name, function()
-				core:RefreshChatTabAlpha();
-				core.QueueChatHoverRefresh();
-			end);
-		end;
+		core.HookGlobal(name, function()
+			core:RefreshChatTabAlpha();
+			core.QueueChatHoverRefresh();
+		end);
 	end;
 	local dock = _G["GENERAL_CHAT_DOCK"];
 	core.WatchChatLayout(dock);

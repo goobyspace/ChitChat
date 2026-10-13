@@ -15,13 +15,15 @@ Shared/Utils.lua
 Shared/Backgrounds.lua
 Shared/Helpers.lua
 
-ChatFrame/Clamp.lua
+# layout has to be before the other chatframe files, it sets up the frame they anchor to
 ChatFrame/Layout.lua
+ChatFrame/Clamp.lua
 ChatFrame/Appearance.lua
 ChatFrame/Scrollbar.lua
 ChatFrame/Timestamps.lua
 ChatFrame/ChatFrame.lua
 
+# tabs has to be before controls, some controls anchor to the tab state, so it might look bad if theyre after
 Tabs/Tabs.lua
 Input/Input.lua
 

@@ -329,6 +329,8 @@ local function CreateControls(chatFrame)
 	for _, button in ipairs(buttons) do
 		core.WatchChatHover(button);
 	end;
+	core.RegisterLayoutRefresh(core.RefreshControls);
+	core.RegisterHoverRefresh(core.RefreshControlAlpha);
 	core:RefreshControls();
 	core:RefreshControlAlpha();
 end;
