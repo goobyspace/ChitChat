@@ -111,7 +111,8 @@ local function WrapAddMessage(addMessage)
 			message = GetTimestampText(timestamp, chatFrame) .. gap .. message;
 		end;
 		SeedChatMessageMetadata(chatFrame);
-		local result = addMessage(chatFrame, message, ...);
+		-- our wrapper is tainted so secret messages stored through it come back blank after the dungeon :/ securecall keeps blizz's call clean
+		local result = securecall(addMessage, chatFrame, message, ...);
 
 		local messages = chatMessageMetadata[chatFrame];
 		messages[#messages + 1] = {

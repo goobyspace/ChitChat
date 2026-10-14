@@ -131,7 +131,8 @@ function core.WatchChatHover(frame)
 	-- the client turns clicks on again once motion is enabled, which makes the frame swallow clicks meant for whatever sits under it :/
 	local clickEnabled = frame:IsMouseClickEnabled();
 	local function RestoreClicks()
-		if frame:IsMouseClickEnabled() ~= clickEnabled then
+		-- turning clicks off mid drag eats the mouse up so the slider never lets go
+		if not frame.ChitChatDragging and frame:IsMouseClickEnabled() ~= clickEnabled then
 			frame:SetMouseClickEnabled(clickEnabled);
 		end;
 	end;

@@ -1,5 +1,9 @@
 local _, core = ...;
 
+local function IsSecret(value)
+	return issecretvalue and issecretvalue(value);
+end;
+
 local function Clamp(value, minimum, maximum)
 	if value < minimum then
 		return minimum;
@@ -145,13 +149,11 @@ function core.CreateGradientBackground(parent, anchor, settings, alpha, layer, s
 	local insetTop = insets.top or 0;
 	local insetBottom = insets.bottom or 0;
 
-	local function PositionPart(part, width, height)
+	local function PositionPart(part, width, anchorLeft, scale)
 		local texture = part.texture;
 		texture:ClearAllPoints();
 		part.startX, part.endX = GetPartRange(part.name, width, mainColourRatio, mainColourSide);
-		local scale = anchor:GetEffectiveScale();
-		local anchorLeft = anchor:GetLeft();
-		if anchorLeft then
+		if anchorLeft and scale then
 			if part.startX > 0 and part.startX < width then
 				part.startX = math.floor((anchorLeft + part.startX - insetLeft) * scale + 0.5) / scale
 					- anchorLeft + insetLeft;
@@ -176,17 +178,34 @@ function core.CreateGradientBackground(parent, anchor, settings, alpha, layer, s
 		regions = regions,
 	};
 	function background:SetOpacity(opacity)
+		if IsSecret(opacity) then
+			return;
+		end;
+
 		local anchorWidth = anchor:GetWidth();
 		local anchorHeight = anchor:GetHeight();
 		local anchorLeft = anchor:GetLeft();
-		if not anchorWidth or not anchorHeight then
+		local geometryIsAccessible = not IsSecret(anchorWidth)
+			and not IsSecret(anchorHeight)
+			and not IsSecret(anchorLeft);
+		local width, height, scale;
+		if geometryIsAccessible and type(anchorWidth) == "number" and type(anchorHeight) == "number"
+			and (anchorLeft == nil or type(anchorLeft) == "number") then
+			width = anchorWidth + insetLeft + insetRight;
+			height = anchorHeight + insetTop + insetBottom;
+			scale = anchor:GetEffectiveScale();
+			if IsSecret(scale) or type(scale) ~= "number" then
+				scale = nil;
+			end;
+		else
+			width, height, anchorLeft = lastWidth, lastHeight, lastLeft;
+		end;
+		if not width or not height then
 			return;
 		end;
-		local width = anchorWidth + insetLeft + insetRight;
-		local height = anchorHeight + insetTop + insetBottom;
 		if lastWidth ~= width or lastHeight ~= height or lastLeft ~= anchorLeft then
 			for _, part in ipairs(parts) do
-				PositionPart(part, width, height);
+				PositionPart(part, width, anchorLeft, scale);
 			end;
 		end;
 		if lastAlpha == opacity and lastWidth == width and lastHeight == height and lastLeft == anchorLeft then

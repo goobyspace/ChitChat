@@ -78,21 +78,6 @@ local function HideChatFrameTextures(chatFrame)
 	end;
 end;
 
-local function GetLinePoints(line)
-	local points = {};
-	for index = 1, line:GetNumPoints() do
-		local point, relativeTo, relativePoint, x, y = line:GetPoint(index);
-		points[index] = {
-			point = point,
-			relativeTo = relativeTo,
-			relativePoint = relativePoint,
-			x = x or 0,
-			y = y or 0,
-		};
-	end;
-	return points;
-end;
-
 local function SetLineVerticalOffset(line, points, offset)
 	line:ClearAllPoints();
 	for _, point in ipairs(points) do
@@ -106,7 +91,8 @@ local function SetLineVerticalOffset(line, points, offset)
 	end;
 end;
 
-local function ApplyMessageLinePadding(chatFrame, line, horizontalInset, verticalPadding, verticalGap)
+-- lines can't be read back while their text is secret (dungeon combat), so the points are rebuilt from blizzards layout instead :D
+local function ApplyMessageLinePadding(chatFrame, line, lineIndex, horizontalInset, verticalPadding, verticalGap)
 	local frameWidth = chatFrame:GetWidth();
 	if not frameWidth then
 		error("ChitChat: Unable to determine the chat frame width for message padding.");
@@ -117,75 +103,37 @@ local function ApplyMessageLinePadding(chatFrame, line, horizontalInset, vertica
 		error("ChitChat: Unable to apply message padding and margins to the chat frame.");
 	end;
 
-	local currentPoints = GetLinePoints(line);
-	local paddingLayout = line.ChitChatPaddingLayout;
-
-	local basePoints = {};
-	for index, point in ipairs(currentPoints) do
-		local applied = paddingLayout and paddingLayout.appliedByPoint[point.point];
-		if applied and applied.relativeTo == point.relativeTo
-			and applied.relativePoint == point.relativePoint and math.abs(applied.x - point.x) < 0.01
-			and math.abs(applied.y - point.y) < 0.01 then
-			basePoints[index] = {
-				point = point.point,
-				relativeTo = point.relativeTo,
-				relativePoint = point.relativePoint,
-				x = paddingLayout.baseXByPoint[point.point],
-				y = point.y - (paddingLayout.verticalOffsetByPoint[point.point] or 0),
-			};
-		else
-			basePoints[index] = point;
-		end;
-	end;
-	local paddedPoints = {};
-	local verticalOffsets = {};
-	for index, point in ipairs(basePoints) do
-		local horizontalOffset = 0;
-		local pointVerticalOffset = 0;
-		if point.relativeTo == chatFrame then
-			horizontalOffset = point.point:find("RIGHT", 1, true)
-				and -(horizontalInset + outerRight) or horizontalInset + outerLeft;
-			if point.point:find("BOTTOM", 1, true) then
-				pointVerticalOffset = pointVerticalOffset + verticalPadding + outerBottom;
-			end;
-		elseif point.point:find("TOP", 1, true) then
-			pointVerticalOffset = -verticalGap;
-		elseif point.point:find("BOTTOM", 1, true) then
-			pointVerticalOffset = verticalGap;
-		end;
-		verticalOffsets[index] = pointVerticalOffset;
-		paddedPoints[index] = {
-			point = point.point,
-			relativeTo = point.relativeTo,
-			relativePoint = point.relativePoint,
-			x = point.x + horizontalOffset,
-			y = point.y + pointVerticalOffset,
+	local atTop = chatFrame:GetInsertMode() == SCROLLING_MESSAGE_FRAME_INSERT_MODE_TOP;
+	local spacing = chatFrame:GetSpacing() or 0;
+	local paddedPoint;
+	if lineIndex == 1 then
+		paddedPoint = {
+			point = atTop and "TOPLEFT" or "BOTTOMLEFT",
+			relativeTo = chatFrame,
+			relativePoint = atTop and "TOPLEFT" or "BOTTOMLEFT",
+			x = horizontalInset + outerLeft,
+			y = atTop and 0 or verticalPadding + outerBottom,
+		};
+	else
+		paddedPoint = {
+			point = atTop and "TOPLEFT" or "BOTTOMLEFT",
+			relativeTo = chatFrame.visibleLines[lineIndex - 1],
+			relativePoint = atTop and "BOTTOMLEFT" or "TOPLEFT",
+			x = 0,
+			y = atTop and -(spacing + verticalGap) or spacing + verticalGap,
 		};
 	end;
 
 	line:SetWidth(textWidth);
-	line:ClearAllPoints();
-	for _, point in ipairs(paddedPoints) do
-		line:SetPoint(
-			point.point,
-			point.relativeTo,
-			point.relativePoint,
-			point.x,
-			point.y
-		);
-	end;
-	local layout = { appliedByPoint = {}, baseXByPoint = {}, verticalOffsetByPoint = {} };
-	for index, point in ipairs(paddedPoints) do
-		layout.appliedByPoint[point.point] = point;
-		layout.baseXByPoint[point.point] = basePoints[index].x;
-		layout.verticalOffsetByPoint[point.point] = verticalOffsets[index];
-	end;
-	line.ChitChatPaddingLayout = layout;
+	SetLineVerticalOffset(line, { paddedPoint }, 0);
+	line.ChitChatPaddedPoints = { paddedPoint };
 end;
 
 local function RestoreLinePoints(line, background)
 	if background.slidePoints then
-		SetLineVerticalOffset(line, background.slidePoints, 0);
+		if line.ChitChatPaddedPoints == background.slidePoints then
+			SetLineVerticalOffset(line, background.slidePoints, 0);
+		end;
 		background.slidePoints = nil;
 	end;
 end;
@@ -195,6 +143,7 @@ local function ClearSlideState(background)
 	background.slideElapsed = nil;
 	background.slideMessageInfo = nil;
 	background.slideDirection = nil;
+	background.slideOffset = nil;
 end;
 
 local function CreateLineBackground(chatFrame, line)
@@ -247,9 +196,10 @@ end;
 
 local function PlayEntrance(chatFrame, line, background)
 	RestoreLinePoints(line, background);
-	background.slidePoints = GetLinePoints(line);
+	background.slidePoints = line.ChitChatPaddedPoints;
 	background.slideDirection = -1;
-	SetLineVerticalOffset(line, background.slidePoints, background.slideDirection * GetEntranceDistance(chatFrame));
+	background.slideOffset = background.slideDirection * GetEntranceDistance(chatFrame);
+	SetLineVerticalOffset(line, background.slidePoints, background.slideOffset);
 	background.slideElapsed = 0;
 	background.slideMessageInfo = line.messageInfo;
 	activeSlides[line] = { chatFrame = chatFrame, background = background };
@@ -263,6 +213,17 @@ local function RefreshChatFrame(chatFrame, state)
 	local visibleLines = chatFrame.visibleLines;
 	if not visibleLines then
 		return;
+	end;
+
+	for line, entry in pairs(activeSlides) do
+		if entry.chatFrame == chatFrame then
+			RestoreLinePoints(line, entry.background);
+			ClearSlideState(entry.background);
+			activeSlides[line] = nil;
+		end;
+	end;
+	if not next(activeSlides) then
+		slideDriver:SetScript("OnUpdate", nil);
 	end;
 
 	local activeLines = {};
@@ -279,12 +240,13 @@ local function RefreshChatFrame(chatFrame, state)
 	local horizontalInset = horizontalPadding + horizontalMargin;
 
 	local verticalGap = 2 * (verticalPadding + verticalMargin);
-	for _, line in ipairs(visibleLines) do
+	for lineIndex, line in ipairs(visibleLines) do
 		local info = line.messageInfo;
 		if info then
 			ApplyMessageLinePadding(
 				chatFrame,
 				line,
+				lineIndex,
 				horizontalInset,
 				verticalPadding,
 				verticalGap
@@ -342,8 +304,8 @@ UpdateSlides = function(_, elapsed)
 			local slideDuration = GetConfig(chatFrame, "slideDuration");
 			background.slideElapsed = math.min(background.slideElapsed + elapsed, slideDuration);
 			local remaining = 1 - background.slideElapsed / slideDuration;
-			SetLineVerticalOffset(line, background.slidePoints,
-				background.slideDirection * GetEntranceDistance(chatFrame) * remaining * remaining);
+			background.slideOffset = background.slideDirection * GetEntranceDistance(chatFrame) * remaining * remaining;
+			SetLineVerticalOffset(line, background.slidePoints, background.slideOffset);
 			if background.slideElapsed >= slideDuration then
 				RestoreLinePoints(line, background);
 				ClearSlideState(background);
