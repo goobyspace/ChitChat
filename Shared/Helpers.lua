@@ -18,15 +18,14 @@ function core.StyleScrollBar(bar)
 			texture:SetPoint("BOTTOMRIGHT");
 			texture:SetGradient("VERTICAL", CreateColor(1, 1, 1, 0.3), CreateColor(1, 1, 1, 0.6));
 		end;
-		texture:Hide();
-		track[index] = texture;
+		texture:SetAlpha(0);
+		track[index] = { frame = texture, alpha = 0 };
 	end;
+	local FadeTrack = core.CreateAlphaFader(track);
 	local selected = false;
 	local function UpdateTrack()
 		local visible = bar:IsShown() and (selected or bar:IsMouseOver());
-		for _, texture in ipairs(track) do
-			texture:SetShown(visible);
-		end;
+		FadeTrack(visible and 1 or 0, core.GetConfig(nil, "fadeDuration") or 0.15);
 	end;
 	bar:HookScript("OnMouseDown", function(_, button)
 		if button == "LeftButton" then
