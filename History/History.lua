@@ -6,6 +6,10 @@ local historySavePending = false;
 local historySaveScheduled = false;
 local historySavingInitialized = false;
 
+local function IsReadableText(text)
+	return type(text) == "string" and not (issecretvalue and issecretvalue(text));
+end;
+
 local function IsHistoryEnabled(chatFrame)
 	return GetConfig(chatFrame, "historyEnabled");
 end;
@@ -80,7 +84,7 @@ local function GetVisibleLines(chatFrame, lineLimit)
 	for lineIndex = lastVisibleIndex, 1, -1 do
 		local visibleLine = visibleLines[lineIndex];
 		local text = visibleLine and visibleLine.GetText and visibleLine:GetText();
-		if type(text) == "string" then
+		if IsReadableText(text) then
 			lines[#lines + 1] = { text = text };
 		end;
 	end;
@@ -102,10 +106,10 @@ local function GetChatHistories()
 				for messageIndex = firstMessageIndex, messageCount do
 					local text, r, g, b, chatTypeID, messageAccessID, lineID =
 						chatFrame:GetMessageInfo(messageIndex);
-					if type(text) == "string" then
+					if IsReadableText(text) then
 						local timestamp, originalText = core:GetChatMessageTimestamp(chatFrame, messageIndex);
-						lines[#lines + 1] = {
-							text = originalText or text,
+						local line = {
+							text = IsReadableText(originalText) and originalText or text,
 							r = r,
 							g = g,
 							b = b,
@@ -114,6 +118,12 @@ local function GetChatHistories()
 							lineID = lineID,
 							timestamp = timestamp,
 						};
+						for key, value in pairs(line) do
+							if issecretvalue and issecretvalue(value) then
+								line[key] = nil;
+							end;
+						end;
+						lines[#lines + 1] = line;
 					end;
 				end;
 			end;
@@ -223,7 +233,7 @@ function core:GetChatHistoryText(maxLines)
 	if chatFrame.GetNumMessages and chatFrame.GetMessageInfo then
 		for messageIndex = 1, chatFrame:GetNumMessages() do
 			local text = chatFrame:GetMessageInfo(messageIndex);
-			if type(text) == "string" then
+			if IsReadableText(text) then
 				lines[#lines + 1] = text;
 			end;
 		end;
@@ -239,7 +249,7 @@ function core:GetChatHistoryText(maxLines)
 		local savedLines = type(savedHistories) == "table" and savedHistories[frameIndex];
 		if type(savedLines) == "table" then
 			for _, line in ipairs(savedLines) do
-				if type(line) == "table" and type(line.text) == "string" then
+				if type(line) == "table" and IsReadableText(line.text) then
 					lines[#lines + 1] = line.text;
 				end;
 			end;
@@ -251,7 +261,7 @@ function core:GetChatHistoryText(maxLines)
 		local tab = frameIndex and _G["ChatFrame" .. frameIndex .. "Tab"];
 		local tabText = tab and (tab.Text or tab:GetFontString());
 		local chatName = tabText and tabText:GetText();
-		output[#output + 1] = chatName or ("Chat " .. (frameIndex or 1));
+		output[#output + 1] = IsReadableText(chatName) and chatName or ("Chat " .. (frameIndex or 1));
 		for _, line in ipairs(lines) do
 			output[#output + 1] = line;
 		end;

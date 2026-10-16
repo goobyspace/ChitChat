@@ -68,7 +68,8 @@ local function SeedChatMessageMetadata(chatFrame)
 		for messageIndex = 1, chatFrame:GetNumMessages() do
 			local message = chatFrame:GetMessageInfo(messageIndex);
 			messages[#messages + 1] = {
-				text = type(message) == "string" and StripTimestamp(message) or nil,
+				text = type(message) == "string" and not (issecretvalue and issecretvalue(message))
+					and StripTimestamp(message) or nil,
 			};
 		end;
 	end;
@@ -100,19 +101,19 @@ local function WrapAddMessage(addMessage)
 		if pending then
 			timestamp = pending.timestamp;
 		end;
-		message = StripTimestamp(message);
-		local rawMessage = message;
-		local recordableMessage = type(rawMessage) == "string"
-			and not (issecretvalue and issecretvalue(rawMessage));
-		if GetConfig(chatFrame, "chitChatShowTimestamps") and type(message) == "string"
-			and not (issecretvalue and issecretvalue(message))
-			and IsTimestamp(timestamp) then
-			local gap = GetConfig(chatFrame, "chitChatTimestampGap") and " " or "";
-			message = GetTimestampText(timestamp, chatFrame) .. gap .. message;
+		local recordableMessage = type(message) == "string"
+			and not (issecretvalue and issecretvalue(message));
+		local rawMessage;
+		if recordableMessage then
+			rawMessage = StripTimestamp(message);
+			message = rawMessage;
+			if GetConfig(chatFrame, "chitChatShowTimestamps") and IsTimestamp(timestamp) then
+				local gap = GetConfig(chatFrame, "chitChatTimestampGap") and " " or "";
+				message = GetTimestampText(timestamp, chatFrame) .. gap .. message;
+			end;
 		end;
 		SeedChatMessageMetadata(chatFrame);
-		-- our wrapper is tainted so secret messages stored through it come back blank after the dungeon :/ securecall keeps blizz's call clean
-		local result = securecall(addMessage, chatFrame, message, ...);
+		local result = addMessage(chatFrame, message, ...);
 
 		local messages = chatMessageMetadata[chatFrame];
 		messages[#messages + 1] = {
@@ -153,12 +154,13 @@ function core:RefreshChatTimestamps()
 		if chatFrame and chatFrame.GetNumMessages and chatFrame.GetMessageInfo then
 			SeedChatMessageMetadata(chatFrame);
 			local messages = {};
+			local hasSecretValues = false;
 			for messageIndex = 1, chatFrame:GetNumMessages() do
 				local text, r, g, b, chatTypeID, messageAccessID, lineID =
 					chatFrame:GetMessageInfo(messageIndex);
 				local timestamp, originalText = core:GetChatMessageTimestamp(chatFrame, messageIndex);
 				messages[#messages + 1] = {
-					text = originalText or text,
+					text = text,
 					timestamp = timestamp,
 					r = r,
 					g = g,
@@ -167,25 +169,40 @@ function core:RefreshChatTimestamps()
 					messageAccessID = messageAccessID,
 					lineID = lineID,
 				};
+				local message = messages[#messages];
+				for _, value in pairs(message) do
+					if issecretvalue and issecretvalue(value) then
+						hasSecretValues = true;
+						break;
+					end;
+				end;
+				if hasSecretValues then
+					break;
+				end;
+				if type(originalText) == "string" and not (issecretvalue and issecretvalue(originalText)) then
+					message.text = originalText;
+				end;
 			end;
 
-			local scrollOffset = chatFrame.GetScrollOffset and chatFrame:GetScrollOffset();
-			chatFrame:Clear();
-			self:ResetChatMessageMetadata(chatFrame);
-			for _, message in ipairs(messages) do
-				self:SetNextChatMessageTimestamp(chatFrame, message.timestamp);
-				chatFrame:AddMessage(
-					message.text,
-					message.r,
-					message.g,
-					message.b,
-					message.chatTypeID,
-					message.messageAccessID,
-					message.lineID
-				);
-			end;
-			if scrollOffset and chatFrame.SetScrollOffset then
-				chatFrame:SetScrollOffset(scrollOffset);
+			if not hasSecretValues then
+				local scrollOffset = chatFrame.GetScrollOffset and chatFrame:GetScrollOffset();
+				chatFrame:Clear();
+				self:ResetChatMessageMetadata(chatFrame);
+				for _, message in ipairs(messages) do
+					self:SetNextChatMessageTimestamp(chatFrame, message.timestamp);
+					chatFrame:AddMessage(
+						message.text,
+						message.r,
+						message.g,
+						message.b,
+						message.chatTypeID,
+						message.messageAccessID,
+						message.lineID
+					);
+				end;
+				if scrollOffset and chatFrame.SetScrollOffset then
+					chatFrame:SetScrollOffset(scrollOffset);
+				end;
 			end;
 		end;
 	end;

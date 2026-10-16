@@ -162,18 +162,28 @@ local function UpdateScrollBar(chatFrame)
 	UpdateScrollBarAlpha(chatFrame, state);
 end;
 
+local function HideDefaultControl(control)
+	if not control then
+		return;
+	end;
+	control:SetAlpha(0);
+	control:Hide();
+	if not control.ChitChatHidden then
+		control:HookScript("OnShow", function(shownControl)
+			shownControl:Hide();
+		end);
+		control.ChitChatHidden = true;
+	end;
+end;
+
 local function HideDefaultScrollBar(chatFrame)
 	local scrollBar = chatFrame.ScrollBar;
+	HideDefaultControl(scrollBar);
 	if scrollBar then
-		scrollBar:SetAlpha(0);
-		scrollBar:Hide();
-		if not scrollBar.ChitChatHidden then
-			scrollBar:HookScript("OnShow", function(shownScrollBar)
-				shownScrollBar:Hide();
-			end);
-			scrollBar.ChitChatHidden = true;
-		end;
+		HideDefaultControl(scrollBar.ScrollUpButton);
+		HideDefaultControl(scrollBar.ScrollDownButton);
 	end;
+	HideDefaultControl(chatFrame.ScrollToBottomButton);
 end;
 
 function core.GetScrollBarInsets(frame)
