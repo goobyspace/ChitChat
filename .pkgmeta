@@ -1,3 +1,5 @@
+package-as: ChitChat
+
 ignore:
   - ChitChat_Standard.toc
   - showcase.gif
