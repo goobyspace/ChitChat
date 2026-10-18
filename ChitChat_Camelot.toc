@@ -1,11 +1,14 @@
 ## Interface: 16001
 ## Title: ChitChat
 ## Notes: Per-message background and fade-in animations reskin for default chat
-## Version: @
+## Version: @project-version@
 ## Dependencies: Blizzard_ChatFrameBase
 ## Category: Chat
 ## IconTexture: interface\AddOns\ChitChat\Assets\ChitChat.png
 ## SavedVariables: ChitChatGlobalStorage
+
+## X-Curse-Project-ID: 1748562
+## X-Wago-ID: 4N2b8dNL
 
 Settings/Config.lua
 Settings/SettingInitializers.lua
