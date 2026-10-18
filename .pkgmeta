@@ -1,2 +1,5 @@
 ignore:
   - ChitChat_Standard.toc
+  - showcase.gif
+  - .github
+  - .gitignore
