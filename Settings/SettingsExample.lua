@@ -185,14 +185,32 @@ function example:UpdateHover(elapsed)
     alphas.tabs = alphas.tabs + (tabsTarget - alphas.tabs) * tabsStep;
     alphas.controls = alphas.controls + (controlsTarget - alphas.controls) * controlsStep;
     for _, tab in ipairs(frame.tabs) do
-        ApplyAlpha(tab, alphas.tabs);
+        if tab.pulse and tab.pulse.FlashAnim:IsPlaying() then
+            tab.previewAlpha = 1;
+        else
+            tab.previewAlpha = (tab.previewAlpha or alphas.tabs)
+                + (tabsTarget - (tab.previewAlpha or alphas.tabs)) * tabsStep;
+        end;
+        ApplyAlpha(tab, tab.previewAlpha);
     end;
     for _, button in ipairs(buttons) do
         ApplyAlpha(button, alphas.controls);
     end;
 end;
 
-local TAB_NAMES = { "General", "Trade" };
+local TAB_NAMES = { "General", "Trade", "Whisper" };
+
+function example:RestartWhisperPulse()
+    if not frame or not frame.tabs[3] then return; end;
+    local tab = frame.tabs[3];
+    tab.pulseCount = 0;
+    tab.pulseLimit = ChitChatGlobalStorage.chatTabsWhisperPulsesStringifiedValue;
+    tab.pulse.FlashAnim:Stop();
+    tab.pulse:Show();
+    tab.pulse.FlashAnim:Play();
+    tab.previewAlpha = 1;
+    ApplyAlpha(tab, 1);
+end;
 
 function example:UpdateTabs()
     if not frame then return; end;
@@ -214,8 +232,23 @@ function example:UpdateTabs()
             tab.underline:SetPoint("BOTTOM", tab.Text, "BOTTOM", 0, -2);
             tab.underline:SetWidth(math.max(tab.Text:GetStringWidth(), 1));
             tab.underline:SetShown(i == 1);
+            tab.highlight, tab.pulse = core.CreateChatTabNotifications(tab);
+            tab.pulse.FlashAnim:SetScript("OnLoop", function(animation)
+                tab.pulseCount = tab.pulseCount + 1;
+                if tab.pulseLimit > 0 and tab.pulseCount >= tab.pulseLimit then
+                    animation:Stop();
+                    tab.pulse:Hide();
+                end;
+            end);
             frame.tabs[i] = tab;
         end;
+        local unread = i > 1;
+        tab.Text:SetText(tabName .. (unread and config.chatTabsUnreadAsterisk and " *" or ""));
+        local highlightColour = config.chatTabsUnreadHighlightColour;
+        tab.highlight:SetColorTexture(highlightColour.r, highlightColour.g, highlightColour.b, highlightColour.a);
+        tab.highlight:SetShown(unread and config.chatTabsHighlightUnread);
+        local pulseColour = config.chatTabsWhisperPulseColour;
+        tab.pulse:SetColorTexture(pulseColour.r, pulseColour.g, pulseColour.b, pulseColour.a);
         tab:SetSize(math.max(tab.Text:GetStringWidth(), 1) + 20, config.tabHeight);
         tab:ClearAllPoints();
         if previous then
@@ -602,6 +635,9 @@ function example:Update(settingInfo)
     elseif key:find("^chatTab") or key == "tabHeight" then
         self:UpdateTabs();
         self:UpdateInput();
+        if key == "chatTabsWhisperPulseColour" or key == "chatTabsWhisperPulses" then
+            self:RestartWhisperPulse();
+        end;
     elseif key:find("^chatInput") or key == "chatBoxTop" or key == "chatBoxAboveTabs" or key == "chatTabsAtBottom" or key == "chatBoxMouseover" then
         self:UpdateInput();
     else

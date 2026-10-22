@@ -174,9 +174,10 @@ function core.CreateAlphaFader(entries)
 		local step = duration > 0 and math.min(elapsed / duration, 1) or 1;
 		local animating = false;
 		for _, entry in ipairs(entries) do
-			entry.alpha = entry.alpha + (targetAlpha - entry.alpha) * step;
-			if math.abs(entry.alpha - targetAlpha) < 0.01 then
-				entry.alpha = targetAlpha;
+			local alpha = math.max(targetAlpha, entry.minAlpha or 0);
+			entry.alpha = entry.alpha + (alpha - entry.alpha) * step;
+			if math.abs(entry.alpha - alpha) < 0.01 then
+				entry.alpha = alpha;
 			else
 				animating = true;
 			end;

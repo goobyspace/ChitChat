@@ -126,6 +126,10 @@ local function WrapAddMessage(addMessage)
 				table.remove(messages, 1);
 			end;
 		end;
+		-- replaying old messages shouldn't mark tabs unread
+		if not pending then
+			core:MarkChatTabUnread(chatFrame);
+		end;
 		return result;
 	end;
 end;

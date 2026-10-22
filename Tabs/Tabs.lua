@@ -47,7 +47,78 @@ local function ApplyTabTextSkin(tab)
 		tab.ChitChatSelectedUnderline = underline;
 	end;
 	underline:SetWidth(math.max(text:GetStringWidth(), 1));
+	local asterisk = tab.ChitChatUnreadAsterisk;
+	if not asterisk then
+		asterisk = tab:CreateFontString(nil, "OVERLAY");
+		asterisk:SetFont(text:GetFont());
+		asterisk:SetText("*");
+		asterisk:Hide();
+		tab.ChitChatUnreadAsterisk = asterisk;
+	end;
+	asterisk:SetFont(text:GetFont());
+	local textEnd = text:GetStringWidth() / 2 + 2;
+	asterisk:ClearAllPoints();
+	asterisk:SetPoint("TOPLEFT", text, "TOP", textEnd, 0);
+	asterisk:SetPoint("BOTTOMLEFT", text, "BOTTOM", textEnd, 0);
+	asterisk:SetJustifyV(text:GetJustifyV());
+	asterisk:SetTextColor(1, 1, 1);
 	return text, underline;
+end;
+
+local function UpdateTabNotification(entry)
+	local chatFrame = GetTabChatFrame(entry.frame);
+	local pulseLimit = GetConfig(chatFrame, "chatTabsWhisperPulsesStringifiedValue");
+	if entry.pulseLimit ~= pulseLimit then
+		entry.pulseLimit = pulseLimit;
+		entry.pulseCount = 0;
+		entry.pulseFinished = nil;
+	end;
+	if chatFrame and chatFrame:IsShown() then
+		entry.unread = nil;
+		entry.alerting = nil;
+		entry.pulseCount = 0;
+		entry.pulseFinished = nil;
+	end;
+	local highlightUnread = GetConfig(chatFrame, "chatTabsHighlightUnread");
+	local showAsterisk = entry.unread and GetConfig(chatFrame, "chatTabsUnreadAsterisk");
+	local highlightColour = GetConfig(chatFrame, "chatTabsUnreadHighlightColour");
+	entry.highlight:SetColorTexture(highlightColour.r, highlightColour.g, highlightColour.b, highlightColour.a);
+	local pulseColour = GetConfig(chatFrame, "chatTabsWhisperPulseColour");
+	entry.pulse:SetColorTexture(pulseColour.r, pulseColour.g, pulseColour.b, pulseColour.a);
+	entry.highlight:SetShown(entry.unread and highlightUnread);
+	local asterisk = entry.frame.ChitChatUnreadAsterisk;
+	if asterisk then
+		asterisk:SetShown(showAsterisk);
+	end;
+	entry.minAlpha = entry.alerting and not entry.pulseFinished and 1 or nil;
+	if entry.alerting and not entry.pulseFinished then
+		entry.pulse:Show();
+		if not entry.pulse.FlashAnim:IsPlaying() then
+			entry.pulse.FlashAnim:Play();
+		end;
+	else
+		entry.pulse.FlashAnim:Stop();
+		entry.pulse:Hide();
+	end;
+end;
+
+function core.CreateChatTabNotifications(background)
+	local highlight = background:CreateTexture(nil, "OVERLAY");
+	highlight:SetAllPoints();
+	highlight:Hide();
+	local pulse = background:CreateTexture(nil, "OVERLAY");
+	pulse:SetAllPoints();
+	pulse:Hide();
+	pulse.FlashAnim = pulse:CreateAnimationGroup();
+	pulse.FlashAnim:SetLooping("REPEAT");
+	for order = 1, 2 do
+		local animation = pulse.FlashAnim:CreateAnimation("Alpha");
+		animation:SetOrder(order);
+		animation:SetDuration(1);
+		animation:SetFromAlpha(order == 1 and 0 or 1);
+		animation:SetToAlpha(order == 1 and 1 or 0);
+	end;
+	return highlight, pulse;
 end;
 
 local function ApplyTabSkin(tab)
@@ -68,6 +139,7 @@ local function ApplyTabSkin(tab)
 	background:SetFrameLevel(math.max(parent:GetFrameLevel(), tab:GetFrameLevel() - 1));
 	background:SetAllPoints(tab);
 	background.ChitChatGradient = ApplyTabGradient(background, chatFrame);
+	local highlight, pulse = core.CreateChatTabNotifications(background);
 	background:SetShown(tab:IsVisible());
 	tab:HookScript("OnShow", function()
 		background:Show();
@@ -77,7 +149,23 @@ local function ApplyTabSkin(tab)
 	end);
 	tab.ChitChatBackground = background;
 	ApplyTabTextSkin(tab);
-	return background;
+	return background, highlight, pulse;
+end;
+
+function core:MarkChatTabUnread(chatFrame, alerting)
+	if chatFrame:IsShown() or not self:InitializeChatFrameTab(chatFrame) then
+		return;
+	end;
+	local entry = _G[chatFrame:GetName() .. "Tab"].ChitChatTrackedFrame;
+	entry.unread = true;
+	entry.alerting = entry.alerting or alerting;
+	if alerting then
+		entry.pulseCount = 0;
+		entry.pulseFinished = nil;
+		entry.pulse.FlashAnim:Stop();
+	end;
+	UpdateTabNotification(entry);
+	core.QueueChatHoverRefresh();
 end;
 
 function core:SyncChatTabs()
@@ -126,7 +214,24 @@ end;
 core.RegisterLayoutRefresh(core.RefreshChatTabs);
 core.RegisterHoverRefresh(core.RefreshChatTabAlpha);
 
+local alertsHooked;
+
 function core:InitializeChatTabs()
+	if not alertsHooked then
+		alertsHooked = true;
+		core.HookGlobal("FCF_StartAlertFlash", function(chatFrame)
+			core:MarkChatTabUnread(chatFrame, true);
+		end);
+		core.HookGlobal("FCF_StopAlertFlash", function(chatFrame)
+			local tab = _G[chatFrame:GetName() .. "Tab"];
+			local entry = tab and tab.ChitChatTrackedFrame;
+			if entry then
+				entry.alerting = nil;
+				UpdateTabNotification(entry);
+				core.QueueChatHoverRefresh();
+			end;
+		end);
+	end;
 	core:RefreshChatTabs();
 	core.QueueChatHoverRefresh();
 	return trackedFrames;
@@ -141,9 +246,32 @@ function core:InitializeChatFrameTab(chatFrame)
 		return true;
 	end;
 	tab:SetAlpha(1);
-	local entry = { frame = tab, background = ApplyTabSkin(tab), alpha = 1 };
+	local background, highlight, pulse = ApplyTabSkin(tab);
+	local entry = {
+		frame = tab, background = background, alpha = 1,
+		highlight = highlight, pulse = pulse,
+	};
 	tab.ChitChatTrackedFrame = entry;
 	trackedFrames[#trackedFrames + 1] = entry;
+	pulse.FlashAnim:SetScript("OnLoop", function()
+		entry.pulseCount = (entry.pulseCount or 0) + 1;
+		if entry.pulseLimit > 0 and entry.pulseCount >= entry.pulseLimit then
+			entry.pulseFinished = true;
+			UpdateTabNotification(entry);
+			core.QueueChatHoverRefresh();
+		end;
+	end);
+	chatFrame:HookScript("OnShow", function()
+		UpdateTabNotification(entry);
+		core.QueueChatHoverRefresh();
+	end);
+	if ChatFrameUtil and ChatFrameUtil.IsTabAlerting then
+		entry.alerting = ChatFrameUtil.IsTabAlerting(tab);
+	else
+		entry.alerting = tab.alerting;
+	end;
+	entry.unread = entry.alerting;
+	UpdateTabNotification(entry);
 	core.WatchChatLayout(tab);
 	local text = tab.Text or tab:GetFontString();
 	if text then
@@ -184,6 +312,7 @@ end;
 
 function core:UpdateChatTab(entry)
 	local tab = entry.frame;
+	UpdateTabNotification(entry);
 	local background = tab.ChitChatBackground;
 	if background then
 		local parent = tab:GetParent() or UIParent;

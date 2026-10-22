@@ -328,6 +328,58 @@ core.Settings = {
 					max = 1,
 					step = 0.05,
 				},
+				{
+					name = "chatTabsHighlightUnread",
+					reload = false,
+					title = "Unread message highlight",
+					description = "Highlight applied to tab when you have unread messages in that tab.",
+					default = true,
+				},
+				{
+					name = "chatTabsUnreadHighlightColour",
+					reload = false,
+					dependsOn = "chatTabsHighlightUnread",
+					enabledWhen = function()
+						return core.GetConfig(nil, "chatTabsHighlightUnread");
+					end,
+					title = "Highlight colour",
+					description = "The colour of the highlight.",
+					default = { r = 1, g = 1, b = 1, a = 0.2 },
+				},
+				{
+					name = "chatTabsWhisperPulses",
+					reload = false,
+					title = "Whisper pulses",
+					description =
+					"Number of times a chat tab with a new whisper will pulse before stopping.",
+					default = 7,
+					min = 1,
+					max = 7,
+					options = {
+						{ value = 1,  text = "1" },
+						{ value = 2,  text = "2" },
+						{ value = 4,  text = "4" },
+						{ value = 8,  text = "8" },
+						{ value = 16, text = "16" },
+						{ value = 24, text = "24" },
+						{ value = 32, text = "32" },
+						{ value = 0,  text = "Continuous" },
+					},
+				},
+				{
+					name = "chatTabsWhisperPulseColour",
+					reload = false,
+					title = "Whisper pulse colour",
+					description = "Set the colour of the chat tab whisper pulses",
+					default = { r = 1, g = 0.72, b = 0.2, a = 0.5 },
+				},
+				{
+					name = "chatTabsUnreadAsterisk",
+					reload = false,
+					title = "Unread asterisk*",
+					description = "Show an asterisk after the chat tab name if it contains unread messages.",
+					default = true,
+				},
 			},
 		},
 		{
