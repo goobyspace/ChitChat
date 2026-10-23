@@ -17,28 +17,37 @@ function core.ClampChatFrameToScreen(chatFrame)
 end;
 
 function core.HookChatFrameCornerPosition(chatFrame)
-	if not chatFrame.OnDragStart or not chatFrame.OnSystemPositionChange
+	if not chatFrame.OnDragStart or not chatFrame.StopMovingOrSizing or not chatFrame.OnSystemPositionChange
 		or chatFrame.ChitChatCornerPositionHooked then
 		return;
 	end;
 
-	hooksecurefunc(chatFrame, "OnDragStart", function()
-		chatFrame.ChitChatEditModeDragging = true;
+	hooksecurefunc(chatFrame, "OnDragStart", function(frame)
+		frame.ChitChatEditModeDragging = frame.isDragging;
+		frame.ChitChatDroppedAtCorner = nil;
 	end);
 
-	hooksecurefunc(chatFrame, "OnSystemPositionChange", function(frame)
-		local normalizeCorner = frame.ChitChatEditModeDragging;
+	hooksecurefunc(chatFrame, "StopMovingOrSizing", function(frame)
+		if not frame.ChitChatEditModeDragging then
+			return;
+		end;
 		frame.ChitChatEditModeDragging = nil;
-
 		local left = frame:GetLeft();
 		local bottom = frame:GetBottom();
 		local parentLeft = UIParent:GetLeft();
 		local parentBottom = UIParent:GetBottom();
-		if normalizeCorner and left and bottom and parentLeft and parentBottom
+		frame.ChitChatDroppedAtCorner = left and bottom and parentLeft and parentBottom
 			and math.abs(left - parentLeft) <= 1
-			and math.abs(bottom - parentBottom) <= 1 then
+			and math.abs(bottom - parentBottom) <= 1;
+	end);
+
+	hooksecurefunc(chatFrame, "OnSystemPositionChange", function(frame)
+		local normalizeCorner = frame.ChitChatDroppedAtCorner;
+		frame.ChitChatDroppedAtCorner = nil;
+		if normalizeCorner then
 			frame:ClearAllPoints();
 			frame:SetPoint("BOTTOMLEFT", UIParent, "BOTTOMLEFT", 0, 0);
+			frame:OnSystemPositionChange();
 		end;
 	end);
 	chatFrame.ChitChatCornerPositionHooked = true;
