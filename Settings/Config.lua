@@ -380,6 +380,18 @@ core.Settings = {
 					description = "Show an asterisk after the chat tab name if it contains unread messages.",
 					default = true,
 				},
+				{
+					name = "chatTabsIgnoreCombatLogUnread",
+					reload = false,
+					dependsOn = { "chatTabsHighlightUnread", "chatTabsUnreadAsterisk" },
+					enabledWhen = function()
+						return core.GetConfig(nil, "chatTabsHighlightUnread")
+							or core.GetConfig(nil, "chatTabsUnreadAsterisk");
+					end,
+					title = "Ignore unread combat log messages",
+					description = "Stops the combat log from being marked as unread.",
+					default = true,
+				},
 			},
 		},
 		{

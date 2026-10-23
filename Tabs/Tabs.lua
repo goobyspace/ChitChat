@@ -153,7 +153,11 @@ local function ApplyTabSkin(tab)
 end;
 
 function core:MarkChatTabUnread(chatFrame, alerting)
-	if chatFrame:IsShown() or not self:InitializeChatFrameTab(chatFrame) then
+	local ignoreCombatLogUnread = GetConfig(chatFrame, "chatTabsIgnoreCombatLogUnread")
+		and (GetConfig(chatFrame, "chatTabsHighlightUnread") or GetConfig(chatFrame, "chatTabsUnreadAsterisk"));
+	if chatFrame:IsShown()
+		or (ignoreCombatLogUnread and core.IsCombatLogFrame(chatFrame))
+		or not self:InitializeChatFrameTab(chatFrame) then
 		return;
 	end;
 	local entry = _G[chatFrame:GetName() .. "Tab"].ChitChatTrackedFrame;

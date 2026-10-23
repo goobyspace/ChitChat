@@ -179,14 +179,17 @@ local function CreateLineBackground(chatFrame, line)
 	};
 end;
 
-local function SetBackgroundOpacity(background, opacity)
-	background.surface:SetOpacity(opacity);
-	background.alpha = opacity;
-end;
-
 local function SetBackgroundShown(background, shown)
 	for texture in pairs(background.surface.regions) do
 		texture:SetShown(shown);
+	end;
+end;
+
+local function SetBackgroundOpacity(background, opacity)
+	background.surface:SetOpacity(opacity);
+	background.alpha = opacity;
+	if not IsSecret(opacity) then
+		SetBackgroundShown(background, opacity > 0);
 	end;
 end;
 

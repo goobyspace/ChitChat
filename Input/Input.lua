@@ -224,7 +224,6 @@ function core:InitializeChatInput(editBox)
 		UpdateInputAlpha();
 	end);
 	editBox:SetAlpha(0);
-	editBox:Show();
 
 	-- blizz resets the alpha when switching tabs, the old per-frame driver used to hide that
 	hooksecurefunc(editBox, "SetAlpha", function(_, alpha)

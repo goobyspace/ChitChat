@@ -206,6 +206,20 @@ function core.CreateSelectedChatFramePositioner(row, chatFrame, buttons, mainTab
 	local activeEditBox;
 	local activeEditBoxTabOffset;
 
+	-- without this the other chat window's edit boxes show up in weird places when clicked
+	local function ShowOnlySelectedEditBox(selectedEditBox)
+		for index = 1, core.GetChatWindowCount() do
+			local frame = _G["ChatFrame" .. index];
+			local editBox = frame and frame.editBox;
+			if editBox and editBox ~= selectedEditBox and editBox:IsShown() and not editBox:HasFocus() then
+				editBox:Hide();
+			end;
+		end;
+		if selectedEditBox and not selectedEditBox:IsShown() then
+			selectedEditBox:Show();
+		end;
+	end;
+
 	return function()
 		local selectedChatFrame = SELECTED_CHAT_FRAME or chatFrame;
 		local selectedEditBox = selectedChatFrame.editBox;
@@ -246,6 +260,7 @@ function core.CreateSelectedChatFramePositioner(row, chatFrame, buttons, mainTab
 		end;
 
 		core:PositionChatInput(selectedEditBox, selectedChatFrame, selectedTab);
+		ShowOnlySelectedEditBox(selectedEditBox);
 		core.controlsDirty = nil;
 		activeEditBoxTabOffset = editBoxTabOffset;
 		core.PositionControlRow(

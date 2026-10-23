@@ -29,7 +29,7 @@ local CONTROL_BUTTON_COUNT = #CONTROL_TOOLTIPS;
 local SAMPLE_COLOUR = CreateColor(0.00, 1.00, 0.60);
 
 local function GetGradientSettings(prefix)
-	return core.GetGradientSettings(nil, prefix);
+    return core.GetGradientSettings(nil, prefix);
 end;
 
 local frame;
@@ -265,13 +265,17 @@ function example:UpdateTabs()
         background:SetFrameStrata(tab:GetFrameStrata());
         background:SetFrameLevel(math.max(area:GetFrameLevel(), tab:GetFrameLevel() - 1));
         background:SetAllPoints(tab);
-        core.CreateGradientBackground(
+        local gradient = core.CreateGradientBackground(
             background,
             background,
             GetGradientSettings("chatTabBackground"),
             1,
             "ARTWORK"
         );
+
+        background:SetScript("OnSizeChanged", function()
+            gradient:SetOpacity(1);
+        end);
         tab.ChitChatBackground = background;
     end;
 end;
