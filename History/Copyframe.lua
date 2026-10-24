@@ -74,9 +74,11 @@ end;
 
 local function UpdateScrollBar(messageFrame)
 	local maxScroll = GetMaxScrollRange(messageFrame);
+	updatingScrollBar = true;
 	copyScrollBar:SetMinMaxValues(0, maxScroll);
 	copyScrollBar:SetValue(maxScroll - messageFrame:GetScrollOffset());
 	copyScrollBar:SetShown(maxScroll > 0);
+	updatingScrollBar = false;
 end;
 
 local function SetMessageFrameText(messageFrame, text)
@@ -93,6 +95,7 @@ local function SetMessageFrameText(messageFrame, text)
 		messageFrame:AddMessage(line);
 	end;
 	messageFrame:ScrollToBottom();
+	return #lines;
 end;
 
 local function CreateCopyFrame()
@@ -189,17 +192,15 @@ local function CreateCopyFrame()
 	scrollBar:SetObeyStepOnDrag(true);
 	scrollBar:SetScript("OnValueChanged", function(_, value)
 		if not InCombatLockdown() and not updatingScrollBar then
-			ClearMessageSelection();
-			local maxScroll = GetMaxScrollRange(messageFrame);
-			messageFrame:SetScrollOffset(maxScroll - math.floor(value + 0.5));
+			local targetOffset = GetMaxScrollRange(messageFrame) - math.floor(value + 0.5);
+			if targetOffset ~= messageFrame:GetScrollOffset() then
+				ClearMessageSelection();
+				messageFrame:SetScrollOffset(targetOffset);
+			end;
 		end;
 	end);
 
-	messageFrame:AddOnDisplayRefreshedCallback(function(refreshedMessageFrame)
-		updatingScrollBar = true;
-		UpdateScrollBar(refreshedMessageFrame);
-		updatingScrollBar = false;
-	end);
+	messageFrame:AddOnDisplayRefreshedCallback(UpdateScrollBar);
 
 	frame:EnableKeyboard(true);
 	if not InCombatLockdown() then
@@ -227,7 +228,7 @@ local function CreateCopyFrame()
 	copyScrollBar = scrollBar;
 end;
 
-function core:ShowCopyFrame(text, title)
+function core:ShowCopyFrame(text, title, focusLine)
 	if InCombatLockdown() then
 		if copyFrame then
 			copyFrame:Hide();
@@ -242,6 +243,10 @@ function core:ShowCopyFrame(text, title)
 	text = tostring(text or "");
 	copyTitle:SetText(title or "ChitChat chat history - select text to copy");
 	copyMessageFrame:SetTextCopyable(true);
-	SetMessageFrameText(copyMessageFrame, text);
+	local lineCount = SetMessageFrameText(copyMessageFrame, text);
 	copyFrame:Show();
+	if focusLine then
+		copyMessageFrame:SetScrollOffset(math.min(math.max(lineCount - focusLine, 0), GetMaxScrollRange(copyMessageFrame)));
+		UpdateScrollBar(copyMessageFrame);
+	end;
 end;

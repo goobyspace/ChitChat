@@ -234,7 +234,7 @@ function core:GetChatHistoryText(maxLines)
 		for messageIndex = 1, chatFrame:GetNumMessages() do
 			local text = chatFrame:GetMessageInfo(messageIndex);
 			if IsReadableText(text) then
-				lines[#lines + 1] = text;
+				lines[#lines + 1] = core:GetChatMessageText(chatFrame, messageIndex, text);
 			end;
 		end;
 	end;
@@ -256,14 +256,25 @@ function core:GetChatHistoryText(maxLines)
 		end;
 	end;
 
+	-- output line holding the newest message currently visible in the chat, so the copy frame can open there
+	local focusLine;
 	if #lines > 0 then
 		local frameIndex = chatFrame:GetID();
 		local tab = frameIndex and _G["ChatFrame" .. frameIndex .. "Tab"];
 		local tabText = tab and (tab.Text or tab:GetFontString());
 		local chatName = tabText and tabText:GetText();
 		output[#output + 1] = IsReadableText(chatName) and chatName or ("Chat " .. (frameIndex or 1));
-		for _, line in ipairs(lines) do
+
+		local scrollOffset = chatFrame.GetScrollOffset and chatFrame:GetScrollOffset() or 0;
+		local focusMessage = math.max(#lines - scrollOffset, 1);
+		local lineNumber = 1;
+		for lineIndex, line in ipairs(lines) do
 			output[#output + 1] = line;
+			-- messages containing newlines get split over several lines in the copy frame
+			lineNumber = lineNumber + 1 + select(2, line:gsub("\n", ""));
+			if lineIndex == focusMessage then
+				focusLine = lineNumber;
+			end;
 		end;
 		output[#output + 1] = "";
 	end;
@@ -283,9 +294,15 @@ function core:GetChatHistoryText(maxLines)
 			lastLines[#lastLines + 1] = output[lineIndex];
 		end;
 		output = lastLines;
+		if focusLine then
+			focusLine = focusLine - (firstLine - 1);
+			if focusLine < 1 then
+				focusLine = nil;
+			end;
+		end;
 	end;
 
-	return table.concat(output, "\n");
+	return table.concat(output, "\n"), focusLine;
 end;
 
 core.HISTORY_BUTTON_TOOLTIP = "Copy chat history";
@@ -297,8 +314,8 @@ function core.CreateHistoryControlButton(parent)
 			return;
 		end;
 
-		local text = core:GetChatHistoryText();
-		core:ShowCopyFrame(text, "ChitChat chat history - select text to copy");
+		local text, focusLine = core:GetChatHistoryText();
+		core:ShowCopyFrame(text, "ChitChat chat history - select text to copy", focusLine);
 	end);
 	button:SetScript("OnEnter", function(hoveredButton)
 		GameTooltip:SetOwner(hoveredButton, "ANCHOR_RIGHT");

@@ -1,14 +1,12 @@
 local _, core = ...;
 
 local GetConfig = core.GetConfig;
-local registered = false;
-local wrappedChatFrames = setmetatable({}, { __mode = "k" });
+local hookedChatFrames = setmetatable({}, { __mode = "k" });
 local chatMessageMetadata = setmetatable({}, { __mode = "k" });
 local pendingTimestamps = setmetatable({}, { __mode = "k" });
-local timestampedAddMessage;
 
 local function IsTimestamp(value)
-	return type(value) == "number" and value > 0;
+	return not (issecretvalue and issecretvalue(value)) and type(value) == "number" and value > 0;
 end;
 
 local function GetTimestampText(timestamp, chatFrame)
@@ -93,133 +91,85 @@ function core:ResetChatMessageMetadata(chatFrame)
 	pendingTimestamps[chatFrame] = nil;
 end;
 
-local function WrapAddMessage(addMessage)
-	return function(chatFrame, message, ...)
-		local pending = pendingTimestamps[chatFrame];
-		pendingTimestamps[chatFrame] = nil;
-		local timestamp = time();
-		if pending then
-			timestamp = pending.timestamp;
-		end;
-		local recordableMessage = type(message) == "string"
-			and not (issecretvalue and issecretvalue(message));
-		local rawMessage;
-		if recordableMessage then
-			rawMessage = StripTimestamp(message);
-			message = rawMessage;
-			if GetConfig(chatFrame, "chitChatShowTimestamps") and IsTimestamp(timestamp) then
-				local gap = GetConfig(chatFrame, "chitChatTimestampGap") and " " or "";
-				message = GetTimestampText(timestamp, chatFrame) .. gap .. message;
-			end;
-		end;
-		SeedChatMessageMetadata(chatFrame);
-		local result = addMessage(chatFrame, message, ...);
+function core:GetChatMessageText(chatFrame, messageIndex, text)
+	if type(text) ~= "string" or (issecretvalue and issecretvalue(text)) then
+		return text;
+	end;
+	local timestamp = self:GetChatMessageTimestamp(chatFrame, messageIndex);
+	text = StripTimestamp(text);
+	if GetConfig(chatFrame, "chitChatShowTimestamps") and IsTimestamp(timestamp) then
+		local gap = GetConfig(chatFrame, "chitChatTimestampGap") and " " or "";
+		return GetTimestampText(timestamp, chatFrame) .. gap .. text;
+	end;
+	return text;
+end;
 
-		local messages = chatMessageMetadata[chatFrame];
-		messages[#messages + 1] = {
-			text = recordableMessage and rawMessage or nil,
-			timestamp = recordableMessage and IsTimestamp(timestamp) and timestamp or nil,
-		};
-		local messageCount = chatFrame.GetNumMessages and chatFrame:GetNumMessages();
-		if type(messageCount) == "number" then
-			while #messages > messageCount do
-				table.remove(messages, 1);
-			end;
+local function RecordMessage(chatFrame, message)
+	local pending = pendingTimestamps[chatFrame];
+	pendingTimestamps[chatFrame] = nil;
+	local timestamp = time();
+	if pending then
+		timestamp = pending.timestamp;
+	end;
+	local recordableMessage = type(message) == "string"
+		and not (issecretvalue and issecretvalue(message));
+	local rawMessage;
+	if recordableMessage then
+		rawMessage = StripTimestamp(message);
+	end;
+
+	local messages = chatMessageMetadata[chatFrame];
+	messages[#messages + 1] = {
+		text = recordableMessage and rawMessage or nil,
+		timestamp = recordableMessage and IsTimestamp(timestamp) and timestamp or nil,
+	};
+	local messageCount = chatFrame.GetNumMessages and chatFrame:GetNumMessages();
+	if type(messageCount) == "number" then
+		while #messages > messageCount do
+			table.remove(messages, 1);
 		end;
-		-- replaying old messages shouldn't mark tabs unread
-		if not pending then
-			core:MarkChatTabUnread(chatFrame);
-		end;
-		return result;
+	end;
+	-- replaying old messages shouldn't mark tabs unread
+	if not pending then
+		core:MarkChatTabUnread(chatFrame);
 	end;
 end;
 
-local function AttachTimestampToChatFrame(chatFrame)
-	if not chatFrame or wrappedChatFrames[chatFrame] then
-		return;
-	end;
-
-	local addMessage = chatFrame.AddMessage;
-	if type(addMessage) ~= "function" then
-		error("ChitChat: chat frame AddMessage is unavailable.");
-	end;
-	SeedChatMessageMetadata(chatFrame);
-	if addMessage == timestampedAddMessage then
-		wrappedChatFrames[chatFrame] = true;
-		return;
-	end;
-	chatFrame.AddMessage = WrapAddMessage(addMessage);
-	wrappedChatFrames[chatFrame] = true;
-end;
-
-function core:RefreshChatTimestamps()
-	for index = 1, core.GetChatWindowCount() do
-		local chatFrame = _G["ChatFrame" .. index];
-		if chatFrame and chatFrame.GetNumMessages and chatFrame.GetMessageInfo then
-			SeedChatMessageMetadata(chatFrame);
-			local messages = {};
-			local hasSecretValues = false;
-			for messageIndex = 1, chatFrame:GetNumMessages() do
-				local text, r, g, b, chatTypeID, messageAccessID, lineID =
-					chatFrame:GetMessageInfo(messageIndex);
-				local timestamp, originalText = core:GetChatMessageTimestamp(chatFrame, messageIndex);
-				messages[#messages + 1] = {
-					text = text,
-					timestamp = timestamp,
-					r = r,
-					g = g,
-					b = b,
-					chatTypeID = chatTypeID,
-					messageAccessID = messageAccessID,
-					lineID = lineID,
-				};
-				local message = messages[#messages];
-				for _, value in pairs(message) do
-					if issecretvalue and issecretvalue(value) then
-						hasSecretValues = true;
-						break;
-					end;
-				end;
-				if hasSecretValues then
-					break;
-				end;
-				if type(originalText) == "string" and not (issecretvalue and issecretvalue(originalText)) then
-					message.text = originalText;
-				end;
-			end;
-
-			if not hasSecretValues then
-				local scrollOffset = chatFrame.GetScrollOffset and chatFrame:GetScrollOffset();
-				chatFrame:Clear();
-				self:ResetChatMessageMetadata(chatFrame);
-				for _, message in ipairs(messages) do
-					self:SetNextChatMessageTimestamp(chatFrame, message.timestamp);
-					chatFrame:AddMessage(
-						message.text,
-						message.r,
-						message.g,
-						message.b,
-						message.chatTypeID,
-						message.messageAccessID,
-						message.lineID
-					);
-				end;
-				if scrollOffset and chatFrame.SetScrollOffset then
-					chatFrame:SetScrollOffset(scrollOffset);
-				end;
+local function RefreshVisibleTimestamps(chatFrame)
+	local messageCount = chatFrame:GetNumMessages();
+	local scrollOffset = chatFrame:GetScrollOffset();
+	for lineIndex, line in ipairs(chatFrame.visibleLines) do
+		local messageIndex = messageCount - scrollOffset - lineIndex + 1;
+		if messageIndex > 0 then
+			local text = chatFrame:GetMessageInfo(messageIndex);
+			if type(text) == "string" and not (issecretvalue and issecretvalue(text)) then
+				line:SetText(core:GetChatMessageText(chatFrame, messageIndex, text));
 			end;
 		end;
 	end;
 end;
 
 function core:InitializeTimestamps(chatFrame)
-	if not registered then
-		if type(ChatFrameMixin) ~= "table" or type(ChatFrameMixin.AddMessage) ~= "function" then
-			error("ChitChat: ChatFrameMixin.AddMessage is unavailable.");
-		end;
-		timestampedAddMessage = WrapAddMessage(ChatFrameMixin.AddMessage);
-		ChatFrameMixin.AddMessage = timestampedAddMessage;
-		registered = true;
+	if not chatFrame or hookedChatFrames[chatFrame] then
+		return;
 	end;
-	AttachTimestampToChatFrame(chatFrame);
+
+	if type(chatFrame.AddMessage) ~= "function" then
+		error("ChitChat: chat frame AddMessage is unavailable.");
+	end;
+	SeedChatMessageMetadata(chatFrame);
+	-- replacing addmessage taints blizzard's caller and breaks the battleground join queue
+	hooksecurefunc(chatFrame, "AddMessage", RecordMessage);
+	chatFrame:AddOnDisplayRefreshedCallback(RefreshVisibleTimestamps);
+	hookedChatFrames[chatFrame] = true;
+	chatFrame:MarkDisplayDirty();
+end;
+
+function core:RefreshChatTimestamps()
+	for index = 1, core.GetChatWindowCount() do
+		local chatFrame = _G["ChatFrame" .. index];
+		if chatFrame and hookedChatFrames[chatFrame] then
+			chatFrame:MarkDisplayDirty();
+		end;
+	end;
 end;
