@@ -212,9 +212,6 @@ local function CreateCopyFrame()
 			key = string.upper(key);
 			if key == "ESCAPE" then
 				self:Hide();
-			elseif key == "C" and IsControlKeyDown() and selectedText then
-				local REMOVE_MARKUP = true;
-				CopyToClipboard(selectedText, REMOVE_MARKUP);
 			end;
 		end;
 	end);
@@ -241,7 +238,7 @@ function core:ShowCopyFrame(text, title, focusLine)
 	end;
 
 	text = tostring(text or "");
-	copyTitle:SetText(title or "ChitChat chat history - select text to copy");
+	copyTitle:SetText(title or "ChitChat chat history - drag to select and copy");
 	copyMessageFrame:SetTextCopyable(true);
 	local lineCount = SetMessageFrameText(copyMessageFrame, text);
 	copyFrame:Show();

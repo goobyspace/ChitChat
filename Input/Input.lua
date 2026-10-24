@@ -2,12 +2,25 @@ local _, core = ...;
 
 local GetConfig = core.GetConfig;
 
-local function HideEditBoxBorders(editBox, keepTextures)
-	keepTextures = keepTextures or editBox.ChitChatBackgroundTextures;
+local function IsSecret(value)
+	return issecretvalue and issecretvalue(value);
+end;
+
+local function HideEditBoxBorders(editBox)
+	local borders = editBox.ChitChatBorderTextures;
+	if not borders then
+		borders = {};
+		local name = editBox:GetName();
+		for _, suffix in ipairs({ "Left", "Right", "Mid", "FocusLeft", "FocusRight", "FocusMid" }) do
+			local texture = name and _G[name .. suffix];
+			if texture then
+				borders[texture] = true;
+			end;
+		end;
+		editBox.ChitChatBorderTextures = borders;
+	end;
 	for _, region in ipairs({ editBox:GetRegions() }) do
-		if region:GetObjectType() == "Texture" and region:GetWidth() <= 3 then
-			-- Leave the blizz line alone so we get the text blinker, but delete the big round circle
-		elseif not (keepTextures and keepTextures[region]) and region:GetObjectType() == "Texture" then
+		if borders[region] then
 			region:Hide();
 		elseif region.SetIgnoreParentAlpha then
 			region:SetIgnoreParentAlpha(false);
@@ -59,11 +72,13 @@ local function RestoreChatInputPoints(editBox)
 		editBox.ChitChatRestoring = nil;
 		return;
 	end;
-	local matches = editBox:GetNumPoints() == #points;
+	local numPoints = editBox:GetNumPoints();
+	local matches = not IsSecret(numPoints) and numPoints == #points;
 	if matches then
 		for index, p in ipairs(points) do
 			local point, relativeTo, relativePoint, x, y = editBox:GetPoint(index);
-			if point ~= p[1] or relativeTo ~= editBox.ChitChatAnchor or relativePoint ~= p[2]
+			if IsSecret(point) or IsSecret(relativeTo) or IsSecret(relativePoint) or IsSecret(x) or IsSecret(y)
+				or point ~= p[1] or relativeTo ~= editBox.ChitChatAnchor or relativePoint ~= p[2]
 				or math.abs(x) > 0.01 or math.abs(y - p[3]) > 0.01 then
 				matches = false;
 				break;
@@ -138,7 +153,7 @@ function core:InitializeChatInput(editBox)
 	editBox:HookScript("OnSizeChanged", function()
 		background:SetOpacity(1);
 	end);
-	HideEditBoxBorders(editBox, backgroundTextures);
+	HideEditBoxBorders(editBox);
 
 	local hoverState = {
 		isFocused = editBox:HasFocus(),
@@ -149,7 +164,7 @@ function core:InitializeChatInput(editBox)
 
 	editBox:HookScript("OnShow", function()
 		RestoreChatInputPoints(editBox);
-		HideEditBoxBorders(editBox, backgroundTextures);
+		HideEditBoxBorders(editBox);
 	end);
 	hooksecurefunc(editBox, "SetPoint", function()
 		RestoreChatInputPoints(editBox);
@@ -159,29 +174,28 @@ function core:InitializeChatInput(editBox)
 	end);
 	if editBox.SetFocusRegionsShown then
 		hooksecurefunc(editBox, "SetFocusRegionsShown", function(_, shown)
-			if shown then
+			if IsSecret(shown) or shown then
 				editBox:SetFocusRegionsShown(false);
 			end;
 		end);
 	end;
 	if editBox.SetBackdropBorderColor then
 		hooksecurefunc(editBox, "SetBackdropBorderColor", function(_, r, g, b, a)
-			if r ~= 0 or g ~= 0 or b ~= 0 or a ~= 0 then
+			if IsSecret(r) or IsSecret(g) or IsSecret(b) or IsSecret(a)
+				or r ~= 0 or g ~= 0 or b ~= 0 or a ~= 0 then
 				editBox:SetBackdropBorderColor(0, 0, 0, 0);
 			end;
 		end);
 	end;
-	for _, region in ipairs({ editBox:GetRegions() }) do
-		if region:GetObjectType() == "Texture" and not backgroundTextures[region] and region:GetWidth() > 3 then
-			hooksecurefunc(region, "Show", function()
-				region:Hide();
-			end);
-			hooksecurefunc(region, "SetShown", function(shownRegion, shown)
-				if shown then
-					shownRegion:Hide();
-				end;
-			end);
-		end;
+	for region in pairs(editBox.ChitChatBorderTextures) do
+		hooksecurefunc(region, "Show", function()
+			region:Hide();
+		end);
+		hooksecurefunc(region, "SetShown", function(shownRegion, shown)
+			if IsSecret(shown) or shown then
+				shownRegion:Hide();
+			end;
+		end);
 	end;
 
 	local inputEntry = { frame = editBox, alpha = 0 };
@@ -195,7 +209,7 @@ function core:InitializeChatInput(editBox)
 	end;
 	editBox.ChitChatRefreshInput = function()
 		RestoreChatInputPoints(editBox);
-		HideEditBoxBorders(editBox, backgroundTextures);
+		HideEditBoxBorders(editBox);
 		UpdateInputAlpha();
 	end;
 	editBox:HookScript("OnEnter", function()
@@ -210,7 +224,7 @@ function core:InitializeChatInput(editBox)
 		editBox:SetFocus();
 	end);
 	editBox:HookScript("OnEditFocusGained", function()
-		HideEditBoxBorders(editBox, backgroundTextures);
+		HideEditBoxBorders(editBox);
 		hoverState.isFocused = true;
 		UpdateInputAlpha();
 	end);
@@ -227,7 +241,7 @@ function core:InitializeChatInput(editBox)
 
 	-- blizz resets the alpha when switching tabs, the old per-frame driver used to hide that
 	hooksecurefunc(editBox, "SetAlpha", function(_, alpha)
-		if alpha ~= inputEntry.alpha then
+		if IsSecret(alpha) or alpha ~= inputEntry.alpha then
 			editBox:SetAlpha(inputEntry.alpha);
 		end;
 	end);

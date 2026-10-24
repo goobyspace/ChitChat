@@ -315,7 +315,7 @@ function core.CreateHistoryControlButton(parent)
 		end;
 
 		local text, focusLine = core:GetChatHistoryText();
-		core:ShowCopyFrame(text, "ChitChat chat history - select text to copy", focusLine);
+		core:ShowCopyFrame(text, "ChitChat chat history - drag to select and copy", focusLine);
 	end);
 	button:SetScript("OnEnter", function(hoveredButton)
 		GameTooltip:SetOwner(hoveredButton, "ANCHOR_RIGHT");

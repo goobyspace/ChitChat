@@ -125,13 +125,17 @@ function core.WatchChatHover(frame)
 	if not frame or frame.ChitChatHoverWatched then
 		return;
 	end;
-	frame.ChitChatHoverWatched = true;
 	-- chat frames disable mouse clicks but still need enter and leave notifications
 	-- the client turns clicks on again once motion is enabled, which makes the frame swallow clicks meant for whatever sits under it :/
 	local clickEnabled = frame:IsMouseClickEnabled();
+	if issecretvalue and issecretvalue(clickEnabled) then
+		return;
+	end;
+	frame.ChitChatHoverWatched = true;
 	local function RestoreClicks()
 		-- turning clicks off mid drag eats the mouse up so the slider never lets go
-		if not frame.ChitChatDragging and frame:IsMouseClickEnabled() ~= clickEnabled then
+		local current = frame:IsMouseClickEnabled();
+		if not frame.ChitChatDragging and ((issecretvalue and issecretvalue(current)) or current ~= clickEnabled) then
 			frame:SetMouseClickEnabled(clickEnabled);
 		end;
 	end;
