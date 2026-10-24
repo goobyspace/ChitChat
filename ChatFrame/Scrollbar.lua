@@ -176,7 +176,7 @@ local function HideDefaultControl(control)
 	end;
 end;
 
-local function HideDefaultScrollBar(chatFrame)
+function core.HideDefaultScrollBar(chatFrame)
 	local scrollBar = chatFrame.ScrollBar;
 	HideDefaultControl(scrollBar);
 	if scrollBar then
@@ -201,7 +201,7 @@ function core:InitializeScrollBar(chatFrame)
 		return;
 	end;
 
-	HideDefaultScrollBar(chatFrame);
+	core.HideDefaultScrollBar(chatFrame);
 	local state = {};
 	chatFrames[chatFrame] = state;
 

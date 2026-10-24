@@ -17,7 +17,7 @@ local function AddTrackedFrame(trackedFrames, frame, background)
 	end;
 end;
 
-local function HideOriginalControl(button)
+function core.HideOriginalControl(button)
 	if not button then
 		return nil;
 	end;
@@ -32,10 +32,16 @@ local function HideOriginalControl(button)
 	return button;
 end;
 
-local function CreateControlButton(row, name, icon, tooltip, clickHandler)
-	local button = CreateFrame("Button", name, row);
+function core.GetSocialControlButton()
+	return _G["QuickJoinToastButton"], QUICK_JOIN or "Quick Join";
+end;
+
+function core.CreateControlButton(row, name, icon, tooltip, clickHandler, frameType)
+	local button = CreateFrame(frameType or "Button", name, row);
 	button.ChitChatIcon = icon;
-	button:SetScript("OnClick", clickHandler);
+	if clickHandler then
+		button:SetScript("OnClick", clickHandler);
+	end;
 	button:SetScript("OnEnter", function(hoveredButton)
 		GameTooltip:SetOwner(hoveredButton, "ANCHOR_RIGHT");
 		GameTooltip:SetText(tooltip, 1, 1, 1);
@@ -60,21 +66,32 @@ local function ForwardOriginalClick(button)
 	end;
 end;
 
+function core.CreateChatMenuControlButton(row, menuButton)
+	return core.CreateControlButton(
+		row,
+		"ChitChatChatTypeButton",
+		controlIconPath .. "chattype.png",
+		CHAT_MENU or "Chat Type",
+		ForwardOriginalClick(menuButton)
+	);
+end;
+
 local function GetControlButtons(row)
 	local buttons = {};
-	local socialButton = HideOriginalControl(_G["QuickJoinToastButton"]);
+	local socialButton, socialTooltip = core.GetSocialControlButton();
+	socialButton = core.HideOriginalControl(socialButton);
 	if socialButton then
-		buttons[#buttons + 1] = CreateControlButton(
+		buttons[#buttons + 1] = core.CreateControlButton(
 			row,
 			"ChitChatQuickJoinButton",
 			controlIconPath .. "socialicon.png",
-			QUICK_JOIN or "Quick Join",
+			socialTooltip,
 			ForwardOriginalClick(socialButton)
 		);
 	end;
-	local channelButton = HideOriginalControl(_G["ChatFrameChannelButton"]);
+	local channelButton = core.HideOriginalControl(_G["ChatFrameChannelButton"]);
 	if channelButton then
-		buttons[#buttons + 1] = CreateControlButton(
+		buttons[#buttons + 1] = core.CreateControlButton(
 			row,
 			"ChitChatChannelButton",
 			controlIconPath .. "chatchannels.png",
@@ -82,18 +99,12 @@ local function GetControlButtons(row)
 			ForwardOriginalClick(channelButton)
 		);
 	end;
-	local menuButton = HideOriginalControl(_G["ChatFrameMenuButton"]);
+	local menuButton = core.HideOriginalControl(_G["ChatFrameMenuButton"]);
 	if menuButton then
-		buttons[#buttons + 1] = CreateControlButton(
-			row,
-			"ChitChatChatTypeButton",
-			controlIconPath .. "chattype.png",
-			CHAT_MENU or "Chat Type",
-			ForwardOriginalClick(menuButton)
-		);
+		buttons[#buttons + 1] = core.CreateChatMenuControlButton(row, menuButton);
 	end;
 	buttons[#buttons + 1] = core.CreateHistoryControlButton(row);
-	local settingsButton = CreateControlButton(
+	local settingsButton = core.CreateControlButton(
 		row,
 		"ChitChatSettingsButton",
 		controlIconPath .. "cogicon.png",
@@ -156,7 +167,7 @@ local function CreateOverflowControl(row, chatFrame)
 		return nil;
 	end;
 	local onClick = original:GetScript("OnClick");
-	local button = CreateControlButton(
+	local button = core.CreateControlButton(
 		UIParent,
 		"ChitChatOverflowButton",
 		controlIconPath .. "arrowdown.png",

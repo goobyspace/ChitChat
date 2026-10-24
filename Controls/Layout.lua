@@ -138,6 +138,9 @@ local function GetControlRowAnchors(chatFrame, position, selectedTab, isCombatLo
 	local offsetY = 0;
 	local vertical = GetConfig(configFrame, "controlsVertical");
 	local outside = GetConfig(configFrame, "controlsOutside");
+	if not vertical then
+		offsetX = position.right and -core.CONTROL_BACKGROUND_INSET or core.CONTROL_BACKGROUND_INSET;
+	end;
 	if vertical and outside then
 		rowPoint = position.vertical .. (position.right and "LEFT" or "RIGHT");
 		framePoint = position.vertical .. (position.right and "RIGHT" or "LEFT");

@@ -72,7 +72,7 @@ core.Settings = {
 					reload = false,
 					title = "Show timestamps",
 					description = "Show a timestamp before each message.",
-					default = true,
+					default = false,
 				},
 				{
 					name = "chitChatTimestampGap",

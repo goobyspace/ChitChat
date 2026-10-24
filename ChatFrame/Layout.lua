@@ -275,6 +275,16 @@ local function AlignDockToInner(chatFrame)
 	end;
 end;
 
+function core.GetLastStaticDockTab(dock)
+	local lastStaticTab;
+	for _, dockedFrame in ipairs(dock.DOCKED_CHAT_FRAMES or {}) do
+		if dockedFrame.isStaticDocked then
+			lastStaticTab = _G[dockedFrame:GetName() .. "Tab"];
+		end;
+	end;
+	return lastStaticTab;
+end;
+
 local function AlignDockScrollFrame(firstTab)
 	local dock = GENERAL_CHAT_DOCK;
 	local scrollFrame = dock and dock.scrollFrame;
@@ -282,12 +292,7 @@ local function AlignDockScrollFrame(firstTab)
 		return;
 	end;
 
-	local lastStaticTab;
-	for _, dockedFrame in ipairs(dock.DOCKED_CHAT_FRAMES or {}) do
-		if dockedFrame.isStaticDocked then
-			lastStaticTab = _G[dockedFrame:GetName() .. "Tab"];
-		end;
-	end;
+	local lastStaticTab = core.GetLastStaticDockTab(dock);
 	local tabBottom, dockBottom, dockRight = firstTab:GetBottom(), dock:GetBottom(), dock:GetRight();
 	if not lastStaticTab or not tabBottom or not dockBottom or not dockRight then
 		return;
