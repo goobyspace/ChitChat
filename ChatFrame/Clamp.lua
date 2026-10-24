@@ -53,6 +53,29 @@ function core.HookChatFrameCornerPosition(chatFrame)
 	chatFrame.ChitChatCornerPositionHooked = true;
 end;
 
+-- the chat frame clips its children, which cuts off the edit mode resize grabber since it sits outside the frame
+function core.UnclipEditModeResizeButton(chatFrame)
+	local button = chatFrame.EditModeResizeButton;
+	if not button or button.ChitChatUnclipped then
+		return;
+	end;
+	button.ChitChatUnclipped = true;
+	button:SetParent(UIParent);
+	button:ClearAllPoints();
+	button:SetPoint("BOTTOMRIGHT", chatFrame.Selection, "BOTTOMRIGHT", -24, 30);
+	button:SetScript("OnMouseDown", function(self)
+		self:SetButtonState("PUSHED", true);
+		self:GetHighlightTexture():Hide();
+		chatFrame:StartSizing("BOTTOMRIGHT");
+	end);
+	button:SetScript("OnMouseUp", function(self)
+		self:SetButtonState("NORMAL", false);
+		self:GetHighlightTexture():Show();
+		chatFrame:StopMovingOrSizing();
+		chatFrame:EditMode_OnResized();
+	end);
+end;
+
 function core.RestoreSavedBottomLeftAnchor(chatFrame)
 	local anchorInfo = chatFrame.systemInfo and chatFrame.systemInfo.anchorInfo;
 	if not anchorInfo or anchorInfo.point ~= "BOTTOMLEFT"

@@ -42,6 +42,7 @@ local function HookEditMode()
 	core.HookChatFrameCornerPosition(chatFrame);
 	if EditModeManagerFrame and EditModeManagerFrame.ExitEditMode then
 		editModeHooked = true;
+		core.UnclipEditModeResizeButton(chatFrame);
 		hooksecurefunc(EditModeManagerFrame, "ExitEditMode", function()
 			if chatFrame.ChitChatSelectionInsets then
 				core.PositionChatFrameForPadding(chatFrame);
