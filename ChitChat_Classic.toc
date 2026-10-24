@@ -3,6 +3,7 @@
 ## Notes: Per-message background and fade-in animations reskin for default chat
 ## Version: @project-version@
 ## Dependencies: Blizzard_ChatFrameBase
+## OptionalDeps: Eavesdropper
 ## Category: Chat
 ## IconTexture: interface\AddOns\ChitChat\Assets\ChitChat.png
 ## SavedVariables: ChitChatGlobalStorage
@@ -36,6 +37,8 @@ Controls/Controls.lua
 
 History/History.lua
 History/Copyframe.lua
+
+Widgets/Eavesdropper.lua
 
 Classic.lua
 Init.lua

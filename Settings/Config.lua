@@ -140,6 +140,18 @@ core.Settings = {
 				},
 			},
 		},
+		{
+			name = "Widgets",
+			settings = {
+				{
+					name = "widgetEavesdropper",
+					title = "Eavesdropper windows",
+					description =
+					"Reskin the Eavesdropper addon's windows with ChitChat's message and window backgrounds. Does nothing if Eavesdropper isn't installed.",
+					default = true,
+				},
+			},
+		},
 	},
 	Messages = {
 		{

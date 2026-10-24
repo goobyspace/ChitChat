@@ -326,7 +326,7 @@ local function SyncBackgroundArea(chatFrame)
 	if not area then
 		return;
 	end;
-	local anchor = core.GetLayoutAnchor(chatFrame);
+	local anchor = chatFrame.ChitChatBackgroundAnchor or core.GetLayoutAnchor(chatFrame);
 	local _, relativeTo = area:GetPoint(1);
 	if area:GetNumPoints() ~= 2 or relativeTo ~= anchor then
 		area:ClearAllPoints();
@@ -335,18 +335,23 @@ local function SyncBackgroundArea(chatFrame)
 	end;
 end;
 
-local function AttachToChatFrame(chatFrame)
+-- window is only set for chat boxes that live inside another addons window (see Widgets/)
+-- those windows own the chat background, fading and entrance, so only the message backgrounds are ours there
+local function AttachToChatFrame(chatFrame, window)
 	if not chatFrame or chatFrames[chatFrame] or not chatFrame.AddOnDisplayRefreshedCallback then
 		return chatFrames[chatFrame] ~= nil;
 	end;
 
-	HideChatFrameTextures(chatFrame);
+	if not window then
+		HideChatFrameTextures(chatFrame);
+	end;
 
-	local backgroundArea = CreateFrame("Frame", nil, chatFrame);
+	local backgroundArea = CreateFrame("Frame", nil, window or chatFrame);
 	chatFrame.ChitChatBackgroundArea = backgroundArea;
+	chatFrame.ChitChatBackgroundAnchor = window;
 	SyncBackgroundArea(chatFrame);
 	local chatBackground = core.CreateGradientBackground(
-		chatFrame,
+		window or chatFrame,
 		backgroundArea,
 		core.GetGradientSettings(chatFrame, "chatBackground"),
 		1,
@@ -361,12 +366,15 @@ local function AttachToChatFrame(chatFrame)
 		chatBackground:SetOpacity(1);
 	end);
 
-	chatFrame:SetClipsChildren(true);
-	chatFrame:SetTimeVisible(GetConfig(chatFrame, "messageTimeVisible"));
-	chatFrame:SetFadeDuration(GetConfig(chatFrame, "messageFadeDuration"));
+	if not window then
+		chatFrame:SetClipsChildren(true);
+		chatFrame:SetTimeVisible(GetConfig(chatFrame, "messageTimeVisible"));
+		chatFrame:SetFadeDuration(GetConfig(chatFrame, "messageFadeDuration"));
+	end;
 
 	local state = {
 		backgrounds = setmetatable({}, { __mode = "k" }),
+		widget = window ~= nil,
 	};
 	chatFrames[chatFrame] = state;
 
@@ -375,23 +383,32 @@ local function AttachToChatFrame(chatFrame)
 		SyncBackgroundArea(refreshedFrame);
 	end);
 
-	hooksecurefunc(chatFrame, "AddMessage", function()
-		state.pendingMessageTime = GetTime();
-	end);
+	-- no pending message means no entrance, windows rebuild their whole history on refresh so it would replay constantly
+	if not window then
+		hooksecurefunc(chatFrame, "AddMessage", function()
+			state.pendingMessageTime = GetTime();
+		end);
+	end;
 
 	RefreshChatFrame(chatFrame, state);
 	return true;
 end;
 
 function core:RefreshChatFrameTimings()
-	for chatFrame in pairs(chatFrames) do
-		chatFrame:SetTimeVisible(GetConfig(chatFrame, "messageTimeVisible"));
-		chatFrame:SetFadeDuration(GetConfig(chatFrame, "messageFadeDuration"));
+	for chatFrame, state in pairs(chatFrames) do
+		if not state.widget then
+			chatFrame:SetTimeVisible(GetConfig(chatFrame, "messageTimeVisible"));
+			chatFrame:SetFadeDuration(GetConfig(chatFrame, "messageFadeDuration"));
+		end;
 	end;
 end;
 
 function core:InitializeChatFrameAppearance(chatFrame)
 	return AttachToChatFrame(chatFrame);
+end;
+
+function core:InitializeWidgetChatFrame(chatFrame, window)
+	return AttachToChatFrame(chatFrame, window);
 end;
 
 function core:RefreshChatFrameAppearance()
