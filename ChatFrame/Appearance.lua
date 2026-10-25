@@ -175,7 +175,7 @@ local function CreateLineBackground(chatFrame, line)
 
 	return {
 		surface = surface,
-		alpha = 0,
+		alpha = line:GetAlpha(),
 		lineAlphaSlide = lineAlphaSlide,
 	};
 end;
@@ -268,7 +268,8 @@ local function RefreshChatFrame(chatFrame, state)
 			end;
 
 			SetBackgroundShown(background, true);
-			SetBackgroundOpacity(background, line:GetAlpha());
+			-- getalpha includes the entrance animation so keep blizzard's last opacity write
+			SetBackgroundOpacity(background, background.alpha);
 
 			local timestamp = pendingTime and GetMessageTimestamp(line);
 			if timestamp and timestamp >= pendingTime - GetConfig(chatFrame, "recentMessageWindow")
@@ -412,3 +413,4 @@ function core:RefreshChatFrameAppearance()
 end;
 
 core.RegisterLayoutRefresh(core.RefreshChatFrameAppearance);
+core.RegisterLayoutRefresh(core.RefreshChatFrameTimings);
