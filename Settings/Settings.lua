@@ -38,7 +38,12 @@ end;
 
 local function SaveStringifiedValue(setting)
     local key = setting.key or setting.name;
-    ChitChatGlobalStorage[key .. "StringifiedValue"] = setting.options[ChitChatGlobalStorage[key]].value;
+    local option = setting.options[ChitChatGlobalStorage[key]];
+    if not option then
+        ChitChatGlobalStorage[key] = 0;
+        option = setting.options[1];
+    end;
+    ChitChatGlobalStorage[key .. "StringifiedValue"] = option.value;
 end;
 
 local function CreateChangedCallback(setting)

@@ -24,13 +24,59 @@ function core.GetConfig(chatFrame, key)
 	return ChitChatGlobalStorage[key];
 end;
 
+function core.SetConfig(chatFrame, key, value)
+	if chatFrame and ChitChatGlobalStorage.perTabSettings then
+		local overrides = ChitChatGlobalStorage.tabOverrides;
+		local id = GetChatFrameId(chatFrame);
+		local frameOverrides = overrides and id and overrides[id];
+		if frameOverrides and frameOverrides[key] ~= nil then
+			frameOverrides[key] = value;
+			return;
+		end;
+	end;
+	ChitChatGlobalStorage[key] = value;
+end;
+
 function core.GetGradientSettings(chatFrame, prefix)
+	local colourKey = prefix .. "Colour";
+	local colour = core.GetConfig(chatFrame, colourKey);
+	if type(colour) ~= "table" then
+		colour = { r = 0, g = 0, b = 0, a = 0 };
+	else
+		for _, channel in ipairs({ "r", "g", "b" }) do
+			local value = colour[channel];
+			if type(value) ~= "number" or value ~= value or value < 0 or value > 1 then
+				colour[channel] = 0;
+			end;
+		end;
+		local alpha = colour.a;
+		if alpha ~= nil
+			and (type(alpha) ~= "number" or alpha ~= alpha or alpha < 0 or alpha > 1) then
+			colour.a = 0;
+		end;
+	end;
+	core.SetConfig(chatFrame, colourKey, colour);
+	local mainColourRatioKey = prefix .. "GradientMainColourRatio";
+	local mainColourRatio = core.GetConfig(chatFrame, mainColourRatioKey);
+	if mainColourRatio ~= nil
+		and (type(mainColourRatio) ~= "number" or mainColourRatio ~= mainColourRatio
+			or mainColourRatio < 0 or mainColourRatio > 1) then
+		mainColourRatio = 0;
+		core.SetConfig(chatFrame, mainColourRatioKey, mainColourRatio);
+	end;
+	local edgeOpacityKey = prefix .. "GradientEdgeOpacity";
+	local edgeOpacity = core.GetConfig(chatFrame, edgeOpacityKey);
+	if edgeOpacity ~= nil and (type(edgeOpacity) ~= "number" or edgeOpacity ~= edgeOpacity
+		or edgeOpacity < 0 or edgeOpacity > 1) then
+		edgeOpacity = 0;
+		core.SetConfig(chatFrame, edgeOpacityKey, edgeOpacity);
+	end;
 	return {
-		colour = core.GetConfig(chatFrame, prefix .. "Colour"),
-		mainColourRatio = core.GetConfig(chatFrame, prefix .. "GradientMainColourRatio"),
+		colour = colour,
+		mainColourRatio = mainColourRatio,
 		oneSidedGradient = core.GetConfig(chatFrame, prefix .. "GradientOneSided"),
 		mainColourSide = core.GetConfig(chatFrame, prefix .. "GradientMainColourSideStringifiedValue"),
-		edgeOpacity = core.GetConfig(chatFrame, prefix .. "GradientEdgeOpacity"),
+		edgeOpacity = edgeOpacity,
 		useGradient = core.GetConfig(chatFrame, prefix .. "UseGradient"),
 	};
 end;

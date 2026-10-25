@@ -59,7 +59,7 @@ local function ForwardOriginalClick(button)
 	end;
 	local onClick = button:GetScript("OnClick");
 	if not onClick then
-		error("ChitChat: A Blizzard chat control is missing its OnClick handler.");
+		return nil;
 	end;
 	return function(_, ...)
 		onClick(button, ...);
@@ -253,7 +253,7 @@ end;
 local function CreateControls(chatFrame)
 	local row = chatFrame.buttonFrame or _G["ChatFrame1ButtonFrame"];
 	if not row then
-		error("ChitChat: ChatFrame1ButtonFrame is unavailable.");
+		return false;
 	end;
 	-- the row is a child of ChatFrame1, which gets hidden whenever another docked tab is selected
 	row:SetParent(UIParent);
@@ -344,6 +344,7 @@ local function CreateControls(chatFrame)
 	core.RegisterHoverRefresh(core.RefreshControlAlpha);
 	core:RefreshControls();
 	core:RefreshControlAlpha();
+	return true;
 end;
 
 function core:InitializeControls(chatFrame)
@@ -352,6 +353,8 @@ function core:InitializeControls(chatFrame)
 		return;
 	end;
 	core:InitializeChatFrameLayout(chatFrame, true);
-	CreateControls(chatFrame);
+	if not CreateControls(chatFrame) then
+		return;
+	end;
 	chatFrame.ChitChatControlsInitialized = true;
 end;

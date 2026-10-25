@@ -123,12 +123,15 @@ local function GetPartRange(name, width, mainColourRatio, mainColourSide)
 	elseif name == "right" then
 		return width / 2, width;
 	end;
-	error("ChitChat: No background positioner for part " .. tostring(name) .. ".");
+	return 0, width;
 end;
 
 function core.CreateGradientBackground(parent, anchor, settings, alpha, layer, subLevel, insets)
-	if type(settings) ~= "table" or type(settings.colour) ~= "table" then
-		error("ChitChat: gradient settings must include a colour table.");
+	if type(settings) ~= "table" then
+		settings = {};
+	end;
+	if type(settings.colour) ~= "table" then
+		settings.colour = { r = 0, g = 0, b = 0, a = 0 };
 	end;
 	local colour = settings.colour;
 	local mainColourRatio = Clamp(settings.mainColourRatio or 0, 0, 1);

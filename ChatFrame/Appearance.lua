@@ -7,6 +7,15 @@ local activeSlides = {};
 local slideDriver = CreateFrame("Frame", "ChitChatMessageSlideDriver");
 local UpdateSlides;
 
+local function GetMessageSpacing(chatFrame, key)
+	local value = GetConfig(chatFrame, key);
+	if type(value) ~= "number" or value ~= value or value < 0 or value > 100 then
+		core.SetConfig(chatFrame, key, 0);
+		return 0;
+	end;
+	return value;
+end;
+
 local function IsSecret(value)
 	return issecretvalue and issecretvalue(value);
 end;
@@ -26,22 +35,14 @@ local function GetMessageTimestamp(line)
 end;
 
 local function GetMessagePadding(chatFrame)
-	local horizontalPadding = GetConfig(chatFrame, "messagePaddingHorizontal");
-	local verticalPadding = GetConfig(chatFrame, "messagePaddingVertical");
-	if type(horizontalPadding) ~= "number" or horizontalPadding < 0
-		or type(verticalPadding) ~= "number" or verticalPadding < 0 then
-		error("ChitChat: message padding values must be non-negative numbers.");
-	end;
+	local horizontalPadding = GetMessageSpacing(chatFrame, "messagePaddingHorizontal");
+	local verticalPadding = GetMessageSpacing(chatFrame, "messagePaddingVertical");
 	return horizontalPadding, verticalPadding;
 end;
 
 local function GetMessageMargins(chatFrame)
-	local horizontalMargin = GetConfig(chatFrame, "messageMarginsHorizontal");
-	local verticalMargin = GetConfig(chatFrame, "messageMarginsVertical");
-	if type(horizontalMargin) ~= "number" or horizontalMargin < 0
-		or type(verticalMargin) ~= "number" or verticalMargin < 0 then
-		error("ChitChat: message margin values must be non-negative numbers.");
-	end;
+	local horizontalMargin = GetMessageSpacing(chatFrame, "messageMarginsHorizontal");
+	local verticalMargin = GetMessageSpacing(chatFrame, "messageMarginsVertical");
 	return horizontalMargin, verticalMargin;
 end;
 
@@ -95,12 +96,12 @@ end;
 local function ApplyMessageLinePadding(chatFrame, line, lineIndex, horizontalInset, verticalPadding, verticalGap)
 	local frameWidth = chatFrame:GetWidth();
 	if not frameWidth then
-		error("ChitChat: Unable to determine the chat frame width for message padding.");
+		return;
 	end;
 	local outerLeft, outerRight, _, outerBottom = core.GetMessageInsets(chatFrame);
 	local textWidth = frameWidth - horizontalInset * 2 - outerLeft - outerRight;
 	if textWidth <= 0 then
-		error("ChitChat: Unable to apply message padding and margins to the chat frame.");
+		textWidth = 1;
 	end;
 
 	local atTop = chatFrame:GetInsertMode() == SCROLLING_MESSAGE_FRAME_INSERT_MODE_TOP;
@@ -373,6 +374,16 @@ local function AttachToChatFrame(chatFrame)
 	chatFrame:AddOnDisplayRefreshedCallback(function(refreshedFrame)
 		RefreshChatFrame(refreshedFrame, state);
 		SyncBackgroundArea(refreshedFrame);
+	end);
+
+	chatFrame:HookScript("OnShow", function()
+		-- hidden tabs can refresh before their message geometry is ready
+		C_Timer.After(0, function()
+			if chatFrame:IsShown() then
+				RefreshChatFrame(chatFrame, state);
+				SyncBackgroundArea(chatFrame);
+			end;
+		end);
 	end);
 
 	hooksecurefunc(chatFrame, "AddMessage", function()

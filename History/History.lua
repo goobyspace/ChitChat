@@ -32,7 +32,7 @@ local function GetCharacterKey()
 		realm = GetRealmName();
 	end;
 	if type(name) ~= "string" or name == "" or type(realm) ~= "string" or realm == "" then
-		error("ChitChat: Unable to determine the current character.");
+		return nil;
 	end;
 
 	return realm .. "-" .. name;
@@ -44,7 +44,11 @@ local function GetCharacterHistories()
 		return nil;
 	end;
 
-	local histories = historiesByCharacter[GetCharacterKey()];
+	local characterKey = GetCharacterKey();
+	if not characterKey then
+		return nil;
+	end;
+	local histories = historiesByCharacter[characterKey];
 	if type(histories) == "table" then
 		return histories;
 	end;
@@ -66,8 +70,10 @@ end;
 
 local function GetSavedLineCount(chatFrame)
 	local lineCount = GetConfig(chatFrame, "historyLines");
-	if type(lineCount) ~= "number" or lineCount < 0 or lineCount % 1 ~= 0 then
-		error("ChitChat: config.historyLines must be a non-negative integer.");
+	if type(lineCount) ~= "number" or lineCount ~= lineCount
+		or lineCount < 0 or lineCount > 5000 or lineCount % 1 ~= 0 then
+		core.SetConfig(chatFrame, "historyLines", 0);
+		return 0;
 	end;
 
 	return lineCount;
@@ -215,8 +221,9 @@ end;
 
 function core:GetChatHistoryText(maxLines)
 	if maxLines ~= nil
-		and (type(maxLines) ~= "number" or maxLines < 0 or maxLines % 1 ~= 0) then
-		error("ChitChat: maxLines must be a non-negative integer.");
+		and (type(maxLines) ~= "number" or maxLines ~= maxLines
+			or maxLines < 0 or maxLines % 1 ~= 0) then
+		maxLines = 0;
 	end;
 	if maxLines == 0 then
 		return "";
@@ -343,7 +350,10 @@ function core:SaveChatHistory()
 		historiesByCharacter = {};
 		ChitChatGlobalStorage[historyStorageKey] = historiesByCharacter;
 	end;
-	historiesByCharacter[GetCharacterKey()] = GetChatHistories();
+	local characterKey = GetCharacterKey();
+	if characterKey then
+		historiesByCharacter[characterKey] = GetChatHistories();
+	end;
 end;
 
 function core:RestoreChatHistory()
@@ -358,6 +368,9 @@ function core:RestoreChatHistory()
 	end;
 
 	local characterKey = GetCharacterKey();
+	if not characterKey then
+		return;
+	end;
 	local histories = historiesByCharacter[characterKey];
 	if type(histories) ~= "table" then
 		return;

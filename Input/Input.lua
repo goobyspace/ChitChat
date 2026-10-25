@@ -110,9 +110,10 @@ function core:PositionChatInput(editBox, chatFrame, tab)
 			local chatTop = chatFrame:GetTop();
 			local tabEdge = GetConfig(configFrame, "chatBoxAboveTabs") and tab:GetTop() or tab:GetBottom();
 			if not chatTop or not tabEdge then
-				error("ChitChat: Unable to determine ChatFrame1 tab bounds for chatBoxTop.");
-			end;
-			if GetConfig(configFrame, "chatBoxAboveTabs") then
+				points = GetConfig(configFrame, "chatBoxAboveTabs")
+					and { { "BOTTOMLEFT", "TOPLEFT", 2 }, { "BOTTOMRIGHT", "TOPRIGHT", 2 } }
+					or { { "TOPLEFT", "TOPLEFT", -2 }, { "TOPRIGHT", "TOPRIGHT", -2 } };
+			elseif GetConfig(configFrame, "chatBoxAboveTabs") then
 				local offset = tabEdge - chatTop + 2;
 				points = { { "BOTTOMLEFT", "TOPLEFT", offset }, { "BOTTOMRIGHT", "TOPRIGHT", offset } };
 			else

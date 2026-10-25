@@ -15,7 +15,9 @@ local controlPositions = {
 function core.GetControlPosition(chatFrame)
 	local position = controlPositions[GetConfig(chatFrame, "controlsPositionStringifiedValue")];
 	if not position then
-		error("ChitChat: Invalid controls.position; expected TOPLEFT, TOPRIGHT, BOTTOMLEFT, or BOTTOMRIGHT.");
+		core.SetConfig(chatFrame, "controlsPosition", 0);
+		core.SetConfig(chatFrame, "controlsPositionStringifiedValue", "TOPLEFT");
+		return controlPositions.TOPLEFT;
 	end;
 	return position;
 end;

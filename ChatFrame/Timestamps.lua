@@ -26,15 +26,17 @@ local function GetTimestampText(timestamp, chatFrame)
 
 	local format = GetConfig(chatFrame, "chitChatTimestamp24Hour") and "%H:%M" or "%I:%M %p";
 	local color = GetConfig(chatFrame, "chitChatTimestampColor");
-	if type(color) ~= "table"
-		or type(color.r) ~= "number"
-		or type(color.g) ~= "number"
-		or type(color.b) ~= "number"
-		or color.r < 0 or color.r > 1
-		or color.g < 0 or color.g > 1
-		or color.b < 0 or color.b > 1 then
-		error("ChitChat: timestamp colour must have red, green, and blue values from 0 to 1.");
+	if type(color) ~= "table" then
+		color = { r = 0, g = 0, b = 0, a = 0 };
+	else
+		for _, channel in ipairs({ "r", "g", "b" }) do
+			local value = color[channel];
+			if type(value) ~= "number" or value ~= value or value < 0 or value > 1 then
+				color[channel] = 0;
+			end;
+		end;
 	end;
+	core.SetConfig(chatFrame, "chitChatTimestampColor", color);
 	local colorCode = string.format(
 		"%02x%02x%02x",
 		math.floor(color.r * 255 + 0.5),
@@ -92,7 +94,7 @@ function core:ResetChatMessageMetadata(chatFrame)
 end;
 
 function core:GetChatMessageText(chatFrame, messageIndex, text)
-	if type(text) ~= "string" or (issecretvalue and issecretvalue(text)) then
+	if type(text) ~= "string" then
 		return text;
 	end;
 	local timestamp = self:GetChatMessageTimestamp(chatFrame, messageIndex);
@@ -121,7 +123,7 @@ local function RecordMessage(chatFrame, message)
 	local messages = chatMessageMetadata[chatFrame];
 	messages[#messages + 1] = {
 		text = recordableMessage and rawMessage or nil,
-		timestamp = recordableMessage and IsTimestamp(timestamp) and timestamp or nil,
+		timestamp = IsTimestamp(timestamp) and timestamp or nil,
 	};
 	local messageCount = chatFrame.GetNumMessages and chatFrame:GetNumMessages();
 	if type(messageCount) == "number" then
@@ -142,7 +144,7 @@ local function RefreshVisibleTimestamps(chatFrame)
 		local messageIndex = messageCount - scrollOffset - lineIndex + 1;
 		if messageIndex > 0 then
 			local text = chatFrame:GetMessageInfo(messageIndex);
-			if type(text) == "string" and not (issecretvalue and issecretvalue(text)) then
+			if type(text) == "string" then
 				line:SetText(core:GetChatMessageText(chatFrame, messageIndex, text));
 			end;
 		end;
@@ -155,7 +157,7 @@ function core:InitializeTimestamps(chatFrame)
 	end;
 
 	if type(chatFrame.AddMessage) ~= "function" then
-		error("ChitChat: chat frame AddMessage is unavailable.");
+		return;
 	end;
 	SeedChatMessageMetadata(chatFrame);
 	-- replacing addmessage taints blizzard's caller and breaks the battleground join queue

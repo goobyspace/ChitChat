@@ -8,16 +8,12 @@ local SWATCH_BORDER = 2;
 
 local function AddDependencies(context, settingInfo, initializer)
     if not settingInfo.dependsOn then return; end;
-    if not settingInfo.enabledWhen then
-        error("ChitChat: A setting dependency requires an enabledWhen predicate.");
-    end;
+    if not settingInfo.enabledWhen then return; end;
 
     local dependencies = type(settingInfo.dependsOn) == "table"
         and settingInfo.dependsOn or { settingInfo.dependsOn };
     local parent = context.initializersByKey[dependencies[1]];
-    if not parent then
-        error("ChitChat: Missing parent setting initializer for " .. dependencies[1] .. ".");
-    end;
+    if not parent then return; end;
     initializer:SetParentInitializer(parent, settingInfo.enabledWhen);
 
     if #dependencies > 1 then
