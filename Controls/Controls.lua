@@ -67,13 +67,21 @@ local function ForwardOriginalClick(button)
 end;
 
 function core.CreateChatMenuControlButton(row, menuButton)
-	return core.CreateControlButton(
+	local isDropdown = menuButton.intrinsic == "DropdownButton";
+	local button = core.CreateControlButton(
 		row,
 		"ChitChatChatTypeButton",
 		controlIconPath .. "chattype.png",
 		CHAT_MENU or "Chat Type",
-		ForwardOriginalClick(menuButton)
+		not isDropdown and ForwardOriginalClick(menuButton) or nil,
+		isDropdown and "DropdownButton" or "Button"
 	);
+	if isDropdown then
+		button:SetupMenu(function(_, rootDescription)
+			menuButton.menuGenerator(menuButton, rootDescription);
+		end);
+	end;
+	return button;
 end;
 
 local function GetControlButtons(row)
@@ -303,6 +311,12 @@ local function CreateControls(chatFrame)
 	function core:RefreshControls()
 		core.controlsDirty = true;
 		selectedChatFrame = PositionForSelectedChatFrame();
+		-- blizzard anchors social alerts to the button row that we move
+		if ChatAlertFrame then
+			ChatAlertFrame:ClearAllPoints();
+			ChatAlertFrame:SetPoint("BOTTOMLEFT", chatFrame, "TOPLEFT", 0, 27);
+			ChatAlertFrame:SetWidth(chatFrame:GetWidth());
+		end;
 		core.EnforceTabAnchor(chatFrame);
 		for index, button in ipairs(buttons) do
 			core.PositionControlButton(button, row, index, core.GetControlPosition(selectedChatFrame), selectedChatFrame);
