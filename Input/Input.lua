@@ -221,9 +221,6 @@ function core:InitializeChatInput(editBox)
 		hoverState.isMouseOver = false;
 		UpdateInputAlpha();
 	end);
-	editBox:HookScript("OnMouseDown", function()
-		editBox:SetFocus();
-	end);
 	editBox:HookScript("OnEditFocusGained", function()
 		HideEditBoxBorders(editBox);
 		hoverState.isFocused = true;
