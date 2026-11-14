@@ -126,6 +126,7 @@ local function ApplyMessageLinePadding(chatFrame, line, lineIndex, horizontalIns
 	end;
 
 	line:SetWidth(textWidth);
+	line.ChitChatTextWidth = textWidth;
 	SetLineVerticalOffset(line, { paddedPoint }, 0);
 	line.ChitChatPaddedPoints = { paddedPoint };
 end;
@@ -172,6 +173,9 @@ local function CreateLineBackground(chatFrame, line)
 			bottom = verticalPadding,
 		}
 	);
+	surface.GetFallbackWidth = function()
+		return line.ChitChatTextWidth;
+	end;
 
 	return {
 		surface = surface,

@@ -176,7 +176,7 @@ function core.CreateGradientBackground(parent, anchor, settings, alpha, layer, s
 		);
 	end;
 
-	local lastWidth, lastHeight, lastAlpha, lastLeft;
+	local lastWidth, lastAlpha, lastLeft;
 	local background = {
 		regions = regions,
 	};
@@ -186,32 +186,33 @@ function core.CreateGradientBackground(parent, anchor, settings, alpha, layer, s
 		end;
 
 		local anchorWidth = anchor:GetWidth();
-		local anchorHeight = anchor:GetHeight();
 		local anchorLeft = anchor:GetLeft();
-		local geometryIsAccessible = not IsSecret(anchorWidth)
-			and not IsSecret(anchorHeight)
-			and not IsSecret(anchorLeft);
-		local width, height, scale;
-		if geometryIsAccessible and type(anchorWidth) == "number" and type(anchorHeight) == "number"
+		local width, scale;
+		if not IsSecret(anchorWidth) and not IsSecret(anchorLeft) and type(anchorWidth) == "number"
 			and (anchorLeft == nil or type(anchorLeft) == "number") then
 			width = anchorWidth + insetLeft + insetRight;
-			height = anchorHeight + insetTop + insetBottom;
 			scale = anchor:GetEffectiveScale();
 			if IsSecret(scale) or type(scale) ~= "number" then
 				scale = nil;
 			end;
 		else
-			width, height, anchorLeft = lastWidth, lastHeight, lastLeft;
+			-- secret geometry (combat) can't be read so use the width the owner set on the anchor
+			local fallbackWidth = self.GetFallbackWidth and self.GetFallbackWidth();
+			if type(fallbackWidth) == "number" then
+				width, anchorLeft = fallbackWidth + insetLeft + insetRight, nil;
+			else
+				width, anchorLeft = lastWidth, lastLeft;
+			end;
 		end;
-		if not width or not height then
+		if not width then
 			return;
 		end;
-		if lastWidth ~= width or lastHeight ~= height or lastLeft ~= anchorLeft then
+		if lastWidth ~= width or lastLeft ~= anchorLeft then
 			for _, part in ipairs(parts) do
 				PositionPart(part, width, anchorLeft, scale);
 			end;
 		end;
-		if lastAlpha == opacity and lastWidth == width and lastHeight == height and lastLeft == anchorLeft then
+		if lastAlpha == opacity and lastWidth == width and lastLeft == anchorLeft then
 			return;
 		end;
 
@@ -255,7 +256,7 @@ function core.CreateGradientBackground(parent, anchor, settings, alpha, layer, s
 				);
 			end;
 		end;
-		lastWidth, lastHeight, lastAlpha, lastLeft = width, height, opacity, anchorLeft;
+		lastWidth, lastAlpha, lastLeft = width, opacity, anchorLeft;
 	end;
 
 	background:SetOpacity(alpha);
