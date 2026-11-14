@@ -109,7 +109,7 @@ function core:PositionChatInput(editBox, chatFrame, tab)
 		elseif tab then
 			local chatTop = chatFrame:GetTop();
 			local tabEdge = GetConfig(configFrame, "chatBoxAboveTabs") and tab:GetTop() or tab:GetBottom();
-			if not chatTop or not tabEdge then
+			if not chatTop or not tabEdge or IsSecret(chatTop) or IsSecret(tabEdge) then
 				points = GetConfig(configFrame, "chatBoxAboveTabs")
 					and { { "BOTTOMLEFT", "TOPLEFT", 2 }, { "BOTTOMRIGHT", "TOPRIGHT", 2 } }
 					or { { "TOPLEFT", "TOPLEFT", -2 }, { "TOPRIGHT", "TOPRIGHT", -2 } };
