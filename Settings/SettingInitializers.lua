@@ -21,9 +21,8 @@ local function AddDependencies(context, settingInfo, initializer)
     end;
 
     if #dependencies > 1 then
-        local baseInitFrame = initializer.InitFrame;
-        initializer.InitFrame = function(self, frame)
-            if baseInitFrame then baseInitFrame(self, frame); end;
+        -- hooksecurefunc keeps our code from tainting blizzards init chain (caused ADDON_ACTION_FORBIDDEN while scrolling)
+        hooksecurefunc(initializer, "InitFrame", function(self, frame)
             for index = 2, #dependencies do
                 local additionalParent = context.initializersByKey[dependencies[index]];
                 if additionalParent then
@@ -35,7 +34,7 @@ local function AddDependencies(context, settingInfo, initializer)
                     );
                 end;
             end;
-        end;
+        end);
     end;
 end;
 
@@ -100,9 +99,7 @@ function initializers.Slider(context, settingInfo)
     local initializer = Settings.CreateSlider(context.category, setting, options, settingInfo.description);
     AddDependencies(context, settingInfo, initializer);
 
-    local baseInitFrame = initializer.InitFrame;
-    initializer.InitFrame = function(self, frame)
-        if baseInitFrame then baseInitFrame(self, frame); end;
+    hooksecurefunc(initializer, "InitFrame", function(self, frame)
         activeFrame = frame;
         local slider = frame.SliderWithSteppers and frame.SliderWithSteppers.Slider;
         if slider and settingInfo.onChange and not frame.ChitChatSliderReleaseHooked then
@@ -175,7 +172,7 @@ function initializers.Slider(context, settingInfo)
             box:HighlightText(0, 0);
             refresh(box, frame.ChitChatEditSetting and frame.ChitChatEditSetting:GetValue());
         end);
-    end;
+    end);
 
     return initializer;
 end;
@@ -191,12 +188,7 @@ function initializers.Color(context, settingInfo)
 
     initializer.GetExtent = function() return ROW_EXTENT; end;
 
-    local baseInitFrame = initializer.InitFrame;
-    initializer.InitFrame = function(self, frame)
-        if not frame.cbrHandles then
-            frame.cbrHandles = Settings.CreateCallbackHandleContainer();
-        end;
-        if baseInitFrame then baseInitFrame(self, frame); end;
+    hooksecurefunc(initializer, "InitFrame", function(self, frame)
         if frame.Text then frame.Text:SetText(title); end;
 
         if not frame.ChitChatSwatch then
@@ -241,7 +233,7 @@ function initializers.Color(context, settingInfo)
                 end,
             });
         end);
-    end;
+    end);
 
     context.layout:AddInitializer(initializer);
     return initializer;
