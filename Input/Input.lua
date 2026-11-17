@@ -97,7 +97,7 @@ function core:PositionChatInput(editBox, chatFrame, tab)
 		return;
 	end;
 
-	local height = math.max(editBox:GetHeight(), GetConfig(chatFrame, "controlSize"));
+	local height = core.GetChatInputHeight(editBox, chatFrame);
 	editBox.ChitChatChatFrame = chatFrame;
 	editBox.ChitChatTab = tab;
 	local configFrame = chatFrame;

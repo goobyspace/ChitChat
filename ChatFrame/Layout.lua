@@ -37,7 +37,7 @@ local function GetOuterElementInsets(chatFrame, tab, metrics)
 
 	if not GetConfig(chatFrame, "chatBoxTop") then
 		local editBox = chatFrame.editBox;
-		local editBoxHeight = editBox and math.max(editBox:GetHeight(), GetConfig(chatFrame, "controlSize")) or 0;
+		local editBoxHeight = core.GetChatInputHeight(editBox, chatFrame);
 		bottom = math.max(bottom, editBoxHeight + 2);
 	end;
 
@@ -191,7 +191,7 @@ function core.PositionChatFrameForPadding(chatFrame)
 	paddingBottom = paddingBottom + insetBottom;
 	if GetConfig(chatFrame, "chatBoxTop") then
 		local editBox = chatFrame.editBox;
-		local editBoxHeight = editBox and math.max(editBox:GetHeight(), GetConfig(chatFrame, "controlSize")) or 0;
+		local editBoxHeight = core.GetChatInputHeight(editBox, chatFrame);
 		local tabOffset = tab and not GetConfig(chatFrame, "chatTabsAtBottom")
 			and GetConfig(chatFrame, "chatBoxAboveTabs") and metrics.above or 0;
 		paddingTop = paddingTop + editBoxHeight + 2 + tabOffset;

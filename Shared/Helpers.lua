@@ -72,6 +72,19 @@ function core.GetChatWindowCount()
 	return math.max(NUM_CHAT_WINDOWS or 0, CHAT_FRAMES and #CHAT_FRAMES or 0);
 end;
 
+function core.GetChatInputHeight(editBox, chatFrame)
+	if not editBox then
+		return 0;
+	end;
+	local height = editBox:GetHeight();
+	if issecretvalue and issecretvalue(height) then
+		height = editBox.ChitChatInputHeight;
+	else
+		editBox.ChitChatInputHeight = height;
+	end;
+	return math.max(height or 0, core.GetConfig(chatFrame, "controlSize"));
+end;
+
 core.hoverRefreshes = {};
 core.layoutRefreshes = {};
 

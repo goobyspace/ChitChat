@@ -246,7 +246,9 @@ function core.CreateSelectedChatFramePositioner(row, chatFrame, buttons, mainTab
 			if not chatTop or not tabEdge then
 				return activeChatFrame or selectedChatFrame;
 			end;
-			editBoxTabOffset = tabEdge - chatTop;
+			if not (issecretvalue and (issecretvalue(chatTop) or issecretvalue(tabEdge))) then
+				editBoxTabOffset = tabEdge - chatTop;
+			end;
 		end;
 
 		if selectedChatFrame == activeChatFrame and selectedEditBox == activeEditBox and not core.controlsDirty then
